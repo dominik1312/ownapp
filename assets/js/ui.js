@@ -12,6 +12,13 @@ export function budapestToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
 }
 
+// Calendar-date arithmetic on a YYYY-MM-DD string (timezone-free by design:
+// the input is already a Budapest calendar day).
+export function addDays(ymd, n) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
 // TZ: Europe/Budapest — current wall-clock hour/minute in Budapest.
 export function budapestNowParts() {
   const parts = new Intl.DateTimeFormat('en-GB', {

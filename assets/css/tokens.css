@@ -4,4 +4,6 @@
   --line:rgba(255,255,255,.06); --line-2:rgba(255,255,255,.12);
   --text:#F2F4F8; --muted:#9AA3B2; --faint:#5E6675;
   --accent:#33D6C3; --r:22px;
+  --ring:#8B5CF6;   /* day-progress ring */
+  --ok:#4ADE80;     /* completed / success */
 }

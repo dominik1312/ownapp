@@ -18,28 +18,45 @@
       <p class="page-sub">Today's tasks &amp; day progress</p>
     </header>
 
-    <main class="page-main">
+    <main class="stack">
+      <div class="ticker">
+        <span class="ticker-dot"></span>
+        <span class="ticker-label">Todo</span>
+        <span class="ticker-o">○</span>
+        <span class="ticker-text" id="ticker-text">–</span>
+        <span class="ticker-count" id="ticker-count">–</span>
+      </div>
+
       <section class="card ring-card">
         <div class="ring-wrap">
           <div id="ring-slot"></div>
           <div class="ring-center">
-            <span class="ring-time" id="ring-time">--:--</span>
-            <span class="ring-pct" id="ring-pct">–</span>
+            <span class="ring-pct-big" id="ring-pct">–</span>
+            <span class="ring-phase" id="ring-phase"></span>
+            <span class="ring-clock" id="ring-time">--:--</span>
           </div>
         </div>
-        <div class="meta-grid">
-          <div><span class="meta-label">Ébren</span><span class="meta-value" id="meta-window">–</span></div>
-          <div><span class="meta-label">Eltelt</span><span class="meta-value" id="meta-elapsed">–</span></div>
-          <div><span class="meta-label">Hátra</span><span class="meta-value" id="meta-remaining">–</span></div>
-          <div><span class="meta-label">Kész</span><span class="meta-value" id="meta-done">–</span></div>
+        <div class="ring-info">
+          <p class="phase-title"><span id="phase-emoji">⏳</span> <span id="phase-title">–</span></p>
+          <p class="phase-remaining" id="meta-remaining">–</p>
+          <p class="phase-window" id="meta-window">–</p>
         </div>
       </section>
 
+      <div class="section-label"><span class="rule rule-s"></span>TO DO LIST<span class="rule"></span></div>
+
       <section class="card">
-        <div class="tasks-head">
-          <h2>Mai feladatok</h2>
+        <div class="today-head">
+          <div>
+            <p class="today-date" id="today-label">TODAY</p>
+            <p class="today-count">
+              <span class="count-big" id="count-done">0</span>
+              <span class="count-rest">/ <span id="count-total">0</span> complete</span>
+            </p>
+          </div>
           <button class="btn" id="btn-add" type="button">+ Add task</button>
         </div>
+        <div class="seg-bar" id="seg-bar"></div>
         <form class="add-form" id="add-form" hidden>
           <input name="title" id="f-title" placeholder="Feladat…" required maxlength="200" />
           <input name="category" id="f-category" placeholder="Kategória" maxlength="40" />
