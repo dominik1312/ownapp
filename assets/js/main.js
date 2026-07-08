@@ -1,33 +1,63 @@
-// Life OS — Main module page: live day-progress ring + today's tasks (Supabase-backed).
+// Life OS — Main module page: live day-progress ring + today's tasks, plus a
+// "plan tomorrow" card underneath (Supabase-backed; one `tasks` table, keyed by for_date).
 import { supabase } from './supabase.js';
 import {
   budapestToday, budapestOffset, budapestHHMM, dayProgress, loadDayWindow,
-  fmtDuration, ringSVG, setRing, escapeHtml, emptyStateHTML, addDays, TZ,
+  fmtDuration, ringSVG, setRing, escapeHtml, emptyStateHTML, addDays,
 } from './ui.js';
 
 const $ = (sel) => document.querySelector(sel);
 
 // TZ: Europe/Budapest — the whole page operates on Budapest "today".
 const today = budapestToday();
+const tomorrow = addDays(today, 1);
+
+// Per-card wiring; every task handler is parametrized by date via this map.
+const cards = {
+  [today]: {
+    list: '#task-list', empty: '#empty-slot', status: '#status',
+    form: '#add-form', title: '#f-title', category: '#f-category', time: '#f-time',
+    moveGlyph: '→', moveHint: 'Áttesz holnapra',
+    emptyText: 'Nincs naplózva — nincs mai feladat.', addLabel: '+ Add task',
+  },
+  [tomorrow]: {
+    list: '#task-list-tmrw', empty: '#empty-slot-tmrw', status: '#status-tmrw',
+    form: '#add-form-tmrw', title: '#f2-title', category: '#f2-category', time: '#f2-time',
+    moveGlyph: '←', moveHint: 'Vissza mára',
+    emptyText: 'Még üres a holnapi terv.', addLabel: '+ Plan task',
+  },
+};
 
 let dayWindow = null;
-let tasks = [];
+let byDate = { [today]: [], [tomorrow]: [] };
+
+// "TUE, JUL 7" from a YYYY-MM-DD string (UTC-pinned so the label can't shift a day)
+function dayLabel(ymd) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric',
+  }).format(new Date(`${ymd}T00:00:00Z`)).toUpperCase();
+}
+
+// TZ: Europe/Budapest — UTC offset valid on the given calendar day (noon avoids DST edges)
+const offsetFor = (ymd) => budapestOffset(new Date(`${ymd}T12:00:00Z`));
 
 init();
 
 async function init() {
   $('#ring-slot').innerHTML = ringSVG(220, 12);
-  $('#today-label').textContent = 'TODAY — ' + new Intl.DateTimeFormat('en-US', {
-    timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric',
-  }).format(new Date()).toUpperCase();
+  $('#today-label').textContent = `TODAY — ${dayLabel(today)}`;
+  $('#tmrw-label').textContent = `TOMORROW — ${dayLabel(tomorrow)}`;
 
   dayWindow = await loadDayWindow(supabase);
   renderRing();
   setInterval(renderRing, 30_000); // live: refresh the ring every 30s
 
-  $('#btn-add').addEventListener('click', () => toggleForm(true));
-  $('#btn-cancel').addEventListener('click', () => toggleForm(false));
-  $('#add-form').addEventListener('submit', onAdd);
+  $('#btn-add').addEventListener('click', () => toggleForm(today, true));
+  $('#btn-add-tmrw').addEventListener('click', () => toggleForm(tomorrow, true));
+  $('#btn-cancel').addEventListener('click', () => toggleForm(today, false));
+  $('#btn-cancel-tmrw').addEventListener('click', () => toggleForm(tomorrow, false));
+  $('#add-form').addEventListener('submit', (e) => onAdd(e, today));
+  $('#add-form-tmrw').addEventListener('submit', (e) => onAdd(e, tomorrow));
 
   await loadTasks();
 }
@@ -62,54 +92,66 @@ async function loadTasks() {
   const { data, error } = await supabase
     .from('tasks')
     .select('*')
-    .eq('for_date', today) // TZ: Europe/Budapest — see budapestToday()
+    .in('for_date', [today, tomorrow]) // TZ: Europe/Budapest — see budapestToday()
     .order('scheduled_at', { ascending: true, nullsFirst: false })
     .order('sort', { ascending: true });
-  if (error) return showError(`Betöltési hiba: ${error.message}`);
-  tasks = data ?? [];
-  renderTasks();
+  if (error) return showError(today, `Betöltési hiba: ${error.message}`);
+  byDate = { [today]: [], [tomorrow]: [] };
+  for (const t of data ?? []) byDate[t.for_date]?.push(t);
+  renderAll();
 }
 
-function renderTasks() {
-  const done = tasks.filter((t) => t.done).length;
+function renderAll() {
+  const todays = byDate[today];
+  const done = todays.filter((t) => t.done).length;
 
-  // ticker — the next thing still to do, over the ring
-  const next = tasks.find((t) => !t.done);
+  // ticker — the next thing still to do today, over the ring
+  const next = todays.find((t) => !t.done);
   $('#ticker-text').textContent =
-    next ? next.title : (tasks.length ? 'Minden kész mára 🎉' : 'Nincs mai feladat');
-  $('#ticker-count').textContent = `${done}/${tasks.length}`;
+    next ? next.title : (todays.length ? 'Minden kész mára 🎉' : 'Nincs mai feladat');
+  $('#ticker-count').textContent = `${done}/${todays.length}`;
 
-  // counters + one progress segment per task
+  // today card counters + one progress segment per task
   $('#count-done').textContent = done;
-  $('#count-total').textContent = tasks.length;
-  $('#seg-bar').innerHTML = tasks
+  $('#count-total').textContent = todays.length;
+  $('#seg-bar').innerHTML = todays
     .map((t) => `<span class="seg${t.done ? ' is-done' : ''}"></span>`).join('');
 
-  const list = $('#task-list');
-  const empty = $('#empty-slot');
+  // tomorrow card counter
+  $('#tmrw-total').textContent = byDate[tomorrow].length;
+
+  renderList(today);
+  renderList(tomorrow);
+}
+
+function renderList(date) {
+  const c = cards[date];
+  const tasks = byDate[date];
+  const list = $(c.list);
+  const empty = $(c.empty);
 
   if (!tasks.length) {
     list.innerHTML = '';
     empty.innerHTML = emptyStateHTML(
-      'Nincs naplózva — nincs mai feladat.',
-      '<button class="btn" id="btn-add-empty" type="button">+ Add task</button>',
+      c.emptyText,
+      `<button class="btn btn-add-empty" type="button">${c.addLabel}</button>`,
     );
-    $('#btn-add-empty').addEventListener('click', () => toggleForm(true));
+    empty.querySelector('.btn-add-empty').addEventListener('click', () => toggleForm(date, true));
     return;
   }
 
   empty.innerHTML = '';
-  list.innerHTML = tasks.map(taskRow).join('');
+  list.innerHTML = tasks.map((t) => taskRow(t, c)).join('');
   list.querySelectorAll('.task').forEach((row) => {
     const id = row.dataset.id;
-    row.querySelector('.task-check').addEventListener('click', () => onToggle(id));
-    row.querySelector('.btn-push').addEventListener('click', () => onPushTomorrow(id));
-    row.querySelector('.btn-del').addEventListener('click', () => onDelete(id));
-    row.querySelector('.task-title').addEventListener('click', () => startEdit(id, row));
+    row.querySelector('.task-check').addEventListener('click', () => onToggle(date, id));
+    row.querySelector('.btn-push').addEventListener('click', () => onMove(date, id));
+    row.querySelector('.btn-del').addEventListener('click', () => onDelete(date, id));
+    row.querySelector('.task-title').addEventListener('click', () => startEdit(date, id, row));
   });
 }
 
-function taskRow(t) {
+function taskRow(t, c) {
   const time = t.scheduled_at ? budapestHHMM(t.scheduled_at) : ''; // TZ: Europe/Budapest in helper
   return `<li class="task${t.done ? ' is-done' : ''}" data-id="${t.id}">
     <button class="task-check" type="button" role="checkbox" aria-checked="${!!t.done}" aria-label="Kész"></button>
@@ -117,19 +159,24 @@ function taskRow(t) {
     ${t.category ? `<span class="tag">${escapeHtml(t.category)}</span>` : ''}
     ${time ? `<span class="task-time">${time}</span>` : ''}
     <span class="task-actions">
-      <button class="task-btn btn-push" type="button" title="Áttesz holnapra">→</button>
+      <button class="task-btn btn-push" type="button" title="${c.moveHint}">${c.moveGlyph}</button>
       <button class="task-btn btn-del" type="button" title="Törlés">×</button>
     </span>
   </li>`;
 }
 
-async function onToggle(id) {
-  const t = tasks.find((x) => String(x.id) === String(id));
+function findIn(date, id) {
+  const idx = byDate[date].findIndex((x) => String(x.id) === String(id));
+  return { idx, t: byDate[date][idx] };
+}
+
+async function onToggle(date, id) {
+  const { t } = findIn(date, id);
   if (!t) return;
   const prev = { done: t.done, done_at: t.done_at };
   t.done = !t.done;
   t.done_at = t.done ? new Date().toISOString() : null; // instant in time, stored as UTC
-  renderTasks(); // optimistic
+  renderAll(); // optimistic
 
   const { error } = await supabase
     .from('tasks')
@@ -137,53 +184,55 @@ async function onToggle(id) {
     .eq('id', t.id);
   if (error) {
     Object.assign(t, prev); // revert on failure
-    renderTasks();
-    showError(`Mentési hiba: ${error.message}`);
+    renderAll();
+    showError(date, `Mentési hiba: ${error.message}`);
   }
 }
 
-async function onDelete(id) {
-  const idx = tasks.findIndex((x) => String(x.id) === String(id));
-  if (idx < 0) return;
-  const [t] = tasks.splice(idx, 1); // optimistic
-  renderTasks();
+async function onDelete(date, id) {
+  const { idx, t } = findIn(date, id);
+  if (!t) return;
+  byDate[date].splice(idx, 1); // optimistic
+  renderAll();
 
   const { error } = await supabase.from('tasks').delete().eq('id', id);
   if (error) {
-    tasks.splice(idx, 0, t); // revert on failure
-    renderTasks();
-    showError(`Törlési hiba: ${error.message}`);
+    byDate[date].splice(idx, 0, t); // revert on failure
+    renderAll();
+    showError(date, `Törlési hiba: ${error.message}`);
   }
 }
 
-async function onPushTomorrow(id) {
-  const idx = tasks.findIndex((x) => String(x.id) === String(id));
-  if (idx < 0) return;
-  const t = tasks[idx];
+// Move between the two cards (today ⇄ tomorrow).
+async function onMove(from, id) {
+  const to = from === today ? tomorrow : today;
+  const { idx, t } = findIn(from, id);
+  if (!t) return;
 
-  const tomorrow = addDays(today, 1);
-  const patch = { for_date: tomorrow };
+  const patch = { for_date: to };
   if (t.scheduled_at) {
-    // TZ: Europe/Budapest — keep the same wall-clock time on tomorrow's date
-    // (offset computed for tomorrow, so a DST switch doesn't shift the hour)
-    const hm = budapestHHMM(t.scheduled_at);
-    patch.scheduled_at = `${tomorrow}T${hm}:00${budapestOffset(new Date(Date.now() + 86_400_000))}`;
+    // TZ: Europe/Budapest — keep the same wall-clock time on the target date
+    patch.scheduled_at = `${to}T${budapestHHMM(t.scheduled_at)}:00${offsetFor(to)}`;
   }
 
-  tasks.splice(idx, 1); // optimistic — it's not today's task anymore
-  renderTasks();
+  byDate[from].splice(idx, 1); // optimistic — hop to the other card
+  const moved = { ...t, ...patch };
+  byDate[to].push(moved);
+  sortTasks(byDate[to]);
+  renderAll();
 
   const { error } = await supabase.from('tasks').update(patch).eq('id', id);
   if (error) {
-    tasks.splice(idx, 0, t); // revert on failure
-    renderTasks();
-    showError(`Mentési hiba: ${error.message}`);
+    byDate[to].splice(byDate[to].indexOf(moved), 1); // revert on failure
+    byDate[from].splice(idx, 0, t);
+    renderAll();
+    showError(from, `Mentési hiba: ${error.message}`);
   }
 }
 
 // Inline title editing: click the title, Enter/blur saves, Esc cancels.
-function startEdit(id, row) {
-  const t = tasks.find((x) => String(x.id) === String(id));
+function startEdit(date, id, row) {
+  const { t } = findIn(date, id);
   if (!t) return;
   const titleEl = row.querySelector('.task-title');
   const input = document.createElement('input');
@@ -199,16 +248,16 @@ function startEdit(id, row) {
     if (finished) return;
     finished = true;
     const title = input.value.trim();
-    if (!save || !title || title === t.title) return renderTasks();
+    if (!save || !title || title === t.title) return renderAll();
 
     const prev = t.title;
     t.title = title;
-    renderTasks(); // optimistic
+    renderAll(); // optimistic
     const { error } = await supabase.from('tasks').update({ title }).eq('id', t.id);
     if (error) {
       t.title = prev;
-      renderTasks();
-      showError(`Mentési hiba: ${error.message}`);
+      renderAll();
+      showError(date, `Mentési hiba: ${error.message}`);
     }
   }
 
@@ -219,33 +268,35 @@ function startEdit(id, row) {
   input.addEventListener('blur', () => finish(true));
 }
 
-async function onAdd(e) {
+async function onAdd(e, date) {
   e.preventDefault();
-  const title = $('#f-title').value.trim();
+  const c = cards[date];
+  const title = $(c.title).value.trim();
   if (!title) return;
-  const category = $('#f-category').value.trim() || null;
-  const time = $('#f-time').value; // "HH:MM" from <input type="time">
-  // TZ: Europe/Budapest — store "today at HH:MM Budapest wall clock" with the correct UTC offset
-  const scheduled_at = time ? `${today}T${time}:00${budapestOffset()}` : null;
-  const sort = tasks.length ? Math.max(...tasks.map((t) => t.sort ?? 0)) + 1 : 0;
+  const category = $(c.category).value.trim() || null;
+  const time = $(c.time).value; // "HH:MM" from <input type="time">
+  // TZ: Europe/Budapest — store "date at HH:MM Budapest wall clock" with the correct UTC offset
+  const scheduled_at = time ? `${date}T${time}:00${offsetFor(date)}` : null;
+  const list = byDate[date];
+  const sort = list.length ? Math.max(...list.map((t) => t.sort ?? 0)) + 1 : 0;
 
   const { data, error } = await supabase
     .from('tasks')
-    .insert({ title, category, scheduled_at, for_date: today, done: false, sort })
+    .insert({ title, category, scheduled_at, for_date: date, done: false, sort })
     .select()
     .single();
-  if (error) return showError(`Mentési hiba: ${error.message}`);
+  if (error) return showError(date, `Mentési hiba: ${error.message}`);
 
-  tasks.push(data);
-  sortTasks();
-  renderTasks();
+  list.push(data);
+  sortTasks(list);
+  renderAll();
   e.target.reset();
-  toggleForm(false);
+  toggleForm(date, false);
 }
 
 // mirror of the query order: scheduled_at asc nulls last, then sort asc
-function sortTasks() {
-  tasks.sort((a, b) => {
+function sortTasks(arr) {
+  arr.sort((a, b) => {
     if (a.scheduled_at && b.scheduled_at) return a.scheduled_at < b.scheduled_at ? -1 : 1;
     if (a.scheduled_at) return -1;
     if (b.scheduled_at) return 1;
@@ -255,15 +306,16 @@ function sortTasks() {
 
 /* ---------- misc ---------- */
 
-function toggleForm(show) {
-  const form = $('#add-form');
-  form.hidden = !show;
-  if (show) $('#f-title').focus();
+function toggleForm(date, show) {
+  const c = cards[date];
+  $(c.form).hidden = !show;
+  if (show) $(c.title).focus();
 }
 
-let statusTimer;
-function showError(msg) {
-  $('#status').textContent = msg;
-  clearTimeout(statusTimer);
-  statusTimer = setTimeout(() => { $('#status').textContent = ''; }, 6000);
+const statusTimers = {};
+function showError(date, msg) {
+  const el = $(cards[date].status);
+  el.textContent = msg;
+  clearTimeout(statusTimers[date]);
+  statusTimers[date] = setTimeout(() => { el.textContent = ''; }, 6000);
 }

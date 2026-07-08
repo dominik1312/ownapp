@@ -68,6 +68,31 @@
         <div id="empty-slot"></div>
         <p class="status" id="status" role="status"></p>
       </section>
+
+      <div class="section-label"><span class="rule rule-s"></span>PLAN TOMORROW<span class="rule"></span></div>
+
+      <section class="card">
+        <div class="today-head">
+          <div>
+            <p class="today-date" id="tmrw-label">TOMORROW</p>
+            <p class="today-count">
+              <span class="count-big" id="tmrw-total">0</span>
+              <span class="count-rest">planned</span>
+            </p>
+          </div>
+          <button class="btn" id="btn-add-tmrw" type="button">+ Plan task</button>
+        </div>
+        <form class="add-form" id="add-form-tmrw" hidden>
+          <input name="title" id="f2-title" placeholder="Holnapi feladat…" required maxlength="200" />
+          <input name="category" id="f2-category" placeholder="Kategória" maxlength="40" />
+          <input name="time" id="f2-time" type="time" />
+          <button class="btn" type="submit">Mentés</button>
+          <button class="btn btn-ghost" id="btn-cancel-tmrw" type="button">Mégse</button>
+        </form>
+        <ul class="task-list" id="task-list-tmrw"></ul>
+        <div id="empty-slot-tmrw"></div>
+        <p class="status" id="status-tmrw" role="status"></p>
+      </section>
     </main>
   </div>
 
