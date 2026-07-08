@@ -1,9 +1,9 @@
-// Life OS — Main module page: live day-progress ring + today's tasks, plus a
+// Life OS — Main module page: "Napi ritmus" phase ring + today's tasks, plus a
 // "plan tomorrow" card underneath (Supabase-backed; one `tasks` table, keyed by for_date).
 import { supabase } from './supabase.js';
 import {
-  budapestToday, budapestOffset, budapestHHMM, dayProgress, loadDayWindow,
-  fmtDuration, ringSVG, setRing, escapeHtml, emptyStateHTML, addDays,
+  budapestToday, budapestOffset, budapestHHMM, budapestNowParts,
+  escapeHtml, emptyStateHTML, addDays,
 } from './ui.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -28,7 +28,6 @@ const cards = {
   },
 };
 
-let dayWindow = null;
 let byDate = { [today]: [], [tomorrow]: [] };
 
 // "TUE, JUL 7" from a YYYY-MM-DD string (UTC-pinned so the label can't shift a day)
@@ -41,14 +40,10 @@ function dayLabel(ymd) {
 // TZ: Europe/Budapest — UTC offset valid on the given calendar day (noon avoids DST edges)
 const offsetFor = (ymd) => budapestOffset(new Date(`${ymd}T12:00:00Z`));
 
-init();
-
 async function init() {
-  $('#ring-slot').innerHTML = ringSVG(220, 12);
   $('#today-label').textContent = `TODAY — ${dayLabel(today)}`;
   $('#tmrw-label').textContent = `TOMORROW — ${dayLabel(tomorrow)}`;
 
-  dayWindow = await loadDayWindow(supabase);
   renderRing();
   setInterval(renderRing, 1000); // live: ring + clock tick every second
 
@@ -62,25 +57,43 @@ async function init() {
   await loadTasks();
 }
 
-/* ---------- day ring ---------- */
+/* ---------- "Napi ritmus" phase ring ---------- */
+// The ring fills across the CURRENT PHASE of the day (not the whole day) and
+// resets at each phase boundary — design imported from "Day Ring - standalone".
 
-// Phase of the day by Budapest wall-clock hour (matches the awake window vibe,
-// not the window itself: early wake still counts as morning).
-function phaseOf(hour) {
-  if (hour >= 5 && hour < 12) return { label: 'MORNING', title: 'Morning — build', emoji: '🌅' };
-  if (hour >= 12 && hour < 18) return { label: 'AFTERNOON', title: 'Afternoon — execute', emoji: '⚡' };
-  if (hour >= 18 && hour < 23) return { label: 'EVENING', title: 'Evening — wrap up', emoji: '⌛' };
-  return { label: 'NIGHT', title: 'Night — wind down', emoji: '🌙' };
-}
+const PHASES = [
+  { key: 'morning', label: 'Reggel', title: 'Reggeli lendület', start: 6, end: 12,
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M12 20v2"/><path d="M12 8a4 4 0 0 0-4 4"/></svg>' },
+  { key: 'afternoon', label: 'Délután', title: 'Mélymunka', start: 12, end: 18,
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>' },
+  { key: 'evening', label: 'Este', title: 'Lezárás', start: 18, end: 23,
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>' },
+  { key: 'night', label: 'Éjszaka', title: 'Pihenő', start: 23, end: 6,
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>' },
+];
+
+const fmtHour = (h) => `${String(((Math.round(h) % 24) + 24) % 24).padStart(2, '0')}:00`;
 
 let pctIntroDone = false;
+let activePhaseKey = null;
 
 function renderRing() {
-  const d = dayProgress(dayWindow); // TZ: Europe/Budapest inside dayProgress
-  setRing($('#ring-slot'), d.progress);
+  // TZ: Europe/Budapest — phase selection runs on Budapest wall-clock time
+  const { hour, minute, second } = budapestNowParts();
+  const hf = hour + minute / 60 + second / 3600;
 
-  const ph = phaseOf(Number(d.now.slice(0, 2)));
-  const pct = Math.round(d.progress * 100);
+  const ph = PHASES.find((p) =>
+    p.start < p.end ? (hf >= p.start && hf < p.end) : (hf >= p.start || hf < p.end),
+  ) ?? PHASES[0];
+  const span = ph.start < ph.end ? ph.end - ph.start : 24 - ph.start + ph.end;
+  const elapsed = hf >= ph.start ? hf - ph.start : 24 - ph.start + hf;
+  const progress = Math.min(1, Math.max(0, elapsed / span));
+
+  const arc = $('#pr-arc');
+  const c = parseFloat(arc.getAttribute('stroke-dasharray'));
+  arc.setAttribute('stroke-dashoffset', (c * (1 - progress)).toFixed(2));
+
+  const pct = Math.round(progress * 100);
   if (pctIntroDone) {
     $('#ring-pct').textContent = `${pct}%`;
   } else {
@@ -95,12 +108,28 @@ function renderRing() {
     };
     requestAnimationFrame(step);
   }
-  $('#ring-phase').textContent = ph.label;
-  $('#ring-time').textContent = d.clock; // HH:MM:SS — visibly alive
-  $('#phase-emoji').textContent = ph.emoji;
-  $('#phase-title').textContent = ph.title;
-  $('#meta-remaining').textContent = `${fmtDuration(d.remainingMin)} awake time left`;
-  $('#meta-window').textContent = `${dayWindow.wake} – ${dayWindow.sleep}`;
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  $('#ring-time').textContent = `${pad2(hour)}:${pad2(minute)}:${pad2(second)}`;
+
+  const remaining = Math.max(0, span - elapsed);
+  const remH = Math.floor(remaining);
+  const remM = Math.round((remaining - remH) * 60);
+  $('#meta-remaining').textContent = remaining <= 0
+    ? 'Fázis vége'
+    : `Még ${remH > 0 ? `${remH} óra ` : ''}${remM} perc van hátra`;
+
+  // phase-dependent bits only change at phase boundaries
+  if (ph.key !== activePhaseKey) {
+    activePhaseKey = ph.key;
+    $('#ring-phase').textContent = ph.label;
+    $('#phase-title').textContent = ph.title;
+    $('#phase-icon').innerHTML = ph.icon;
+    $('#meta-window').textContent = `${fmtHour(ph.start)}–${fmtHour(ph.end)}`;
+    [...$('#phase-dots').children].forEach((dot, i) => {
+      dot.classList.toggle('is-active', PHASES[i].key === ph.key);
+    });
+  }
 }
 
 /* ---------- tasks ---------- */
@@ -336,3 +365,5 @@ function showError(date, msg) {
   clearTimeout(statusTimers[date]);
   statusTimers[date] = setTimeout(() => { el.textContent = ''; }, 6000);
 }
+
+init();

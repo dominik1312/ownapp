@@ -6,7 +6,7 @@
   <title>Main · Life OS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/base.css" />
 </head>
@@ -27,19 +27,32 @@
         <span class="ticker-count" id="ticker-count">–</span>
       </div>
 
-      <section class="card ring-card">
-        <div class="ring-wrap">
-          <div id="ring-slot"></div>
-          <div class="ring-center">
-            <span class="ring-pct-big" id="ring-pct">–</span>
-            <span class="ring-phase" id="ring-phase"></span>
-            <span class="ring-clock" id="ring-time">--:--</span>
+      <section class="card rhythm-card">
+        <div class="rhythm-inner">
+          <p class="rhythm-eyebrow">Napi ritmus</p>
+          <div class="phase-ring-wrap">
+            <svg class="phase-ring" viewBox="0 0 200 200" width="220" height="220" aria-hidden="true">
+              <circle class="pr-track" cx="100" cy="100" r="90" stroke-width="14"></circle>
+              <circle class="pr-arc" id="pr-arc" cx="100" cy="100" r="90" stroke-width="14"
+                stroke-dasharray="565.49" stroke-dashoffset="565.49"></circle>
+            </svg>
+            <div class="pr-center">
+              <span class="pr-pct" id="ring-pct">–</span>
+              <span class="pr-phase" id="ring-phase"></span>
+              <span class="pr-clock" id="ring-time">--:--:--</span>
+            </div>
           </div>
-        </div>
-        <div class="ring-info">
-          <p class="phase-title"><span id="phase-emoji">⏳</span> <span id="phase-title">–</span></p>
-          <p class="phase-remaining" id="meta-remaining">–</p>
-          <p class="phase-window" id="meta-window">–</p>
+          <div class="rhythm-info">
+            <div class="rhythm-title">
+              <span class="rhythm-icon" id="phase-icon"></span>
+              <p id="phase-title">–</p>
+            </div>
+            <p class="rhythm-remaining" id="meta-remaining">–</p>
+            <p class="rhythm-window" id="meta-window">–</p>
+          </div>
+          <div class="rhythm-dots" id="phase-dots">
+            <span></span><span></span><span></span><span></span>
+          </div>
         </div>
       </section>
 
