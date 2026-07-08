@@ -19,13 +19,13 @@ export function addDays(ymd, n) {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-// TZ: Europe/Budapest — current wall-clock hour/minute in Budapest.
+// TZ: Europe/Budapest — current wall-clock hour/minute/second in Budapest.
 export function budapestNowParts() {
   const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
   }).formatToParts(new Date());
   const num = (type) => Number(parts.find((p) => p.type === type).value);
-  return { hour: num('hour'), minute: num('minute') };
+  return { hour: num('hour'), minute: num('minute'), second: num('second') };
 }
 
 // TZ: Europe/Budapest — current UTC offset ("+02:00"/"+01:00", DST-aware), used to
@@ -53,22 +53,37 @@ function hmToMin(hm) {
   return h * 60 + (m || 0);
 }
 
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const pad2 = (n) => String(n).padStart(2, '0');
 
 // TZ: Europe/Budapest — progress through the awake window, from Budapest wall-clock "now".
-// progress = (now − wake) / (sleep − wake), clamped 0–1.
-export function dayProgress(dayWindow = DEFAULT_DAY_WINDOW) {
-  const { hour, minute } = budapestNowParts();
-  const nowMin = hour * 60 + minute;
+// Supports windows that cross midnight (e.g. 08:00 → 00:00): hours after midnight
+// still belong to the previous day's window. Inside the sleep gap, the first half
+// counts as "day over" (100%) and the second half as "not started yet" (0%).
+// `now` is injectable for tests only; it defaults to the live Budapest clock.
+export function dayProgress(dayWindow = DEFAULT_DAY_WINDOW, now = budapestNowParts()) {
+  const { hour, minute, second = 0 } = now;
+  const nowMin = hour * 60 + minute + second / 60;
   const wake = hmToMin(dayWindow.wake);
-  const sleep = hmToMin(dayWindow.sleep);
-  const span = Math.max(1, sleep - wake);
-  const elapsed = clamp(nowMin - wake, 0, span);
+  let sleep = hmToMin(dayWindow.sleep);
+  if (sleep <= wake) sleep += 1440; // window ends on the next calendar day
+  const span = sleep - wake;
+
+  // minutes since wake, wrapped to [0, 1440) so post-midnight times sort after evening
+  const sinceWake = (((nowMin - wake) % 1440) + 1440) % 1440;
+  let elapsed;
+  if (sinceWake <= span) {
+    elapsed = sinceWake;
+  } else {
+    const intoGap = sinceWake - span;
+    elapsed = intoGap < (1440 - span) / 2 ? span : 0;
+  }
+
   return {
     progress: elapsed / span,
     elapsedMin: elapsed,
     remainingMin: span - elapsed,
-    now: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+    now: `${pad2(hour)}:${pad2(minute)}`,
+    clock: `${pad2(hour)}:${pad2(minute)}:${pad2(second)}`,
   };
 }
 

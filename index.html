@@ -75,7 +75,7 @@
           </span>`;
         const tick = () => setRing(slot, dayProgress(dayWindow).progress); // TZ: Europe/Budapest
         tick();
-        setInterval(tick, 30_000); // keep the small ring live too
+        setInterval(tick, 1000); // keep the small ring live too
       } catch {
         /* Supabase not configured / unreachable — tile stays static */
       }

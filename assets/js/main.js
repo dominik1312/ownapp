@@ -50,7 +50,7 @@ async function init() {
 
   dayWindow = await loadDayWindow(supabase);
   renderRing();
-  setInterval(renderRing, 30_000); // live: refresh the ring every 30s
+  setInterval(renderRing, 1000); // live: ring + clock tick every second
 
   $('#btn-add').addEventListener('click', () => toggleForm(today, true));
   $('#btn-add-tmrw').addEventListener('click', () => toggleForm(tomorrow, true));
@@ -69,7 +69,8 @@ async function init() {
 function phaseOf(hour) {
   if (hour >= 5 && hour < 12) return { label: 'MORNING', title: 'Morning — build', emoji: '🌅' };
   if (hour >= 12 && hour < 18) return { label: 'AFTERNOON', title: 'Afternoon — execute', emoji: '⚡' };
-  return { label: 'EVENING', title: 'Evening — wrap up', emoji: '⌛' };
+  if (hour >= 18 && hour < 23) return { label: 'EVENING', title: 'Evening — wrap up', emoji: '⌛' };
+  return { label: 'NIGHT', title: 'Night — wind down', emoji: '🌙' };
 }
 
 function renderRing() {
@@ -79,7 +80,7 @@ function renderRing() {
   const ph = phaseOf(Number(d.now.slice(0, 2)));
   $('#ring-pct').textContent = `${Math.round(d.progress * 100)}%`;
   $('#ring-phase').textContent = ph.label;
-  $('#ring-time').textContent = d.now;
+  $('#ring-time').textContent = d.clock; // HH:MM:SS — visibly alive
   $('#phase-emoji').textContent = ph.emoji;
   $('#phase-title').textContent = ph.title;
   $('#meta-remaining').textContent = `${fmtDuration(d.remainingMin)} awake time left`;
