@@ -73,12 +73,28 @@ function phaseOf(hour) {
   return { label: 'NIGHT', title: 'Night — wind down', emoji: '🌙' };
 }
 
+let pctIntroDone = false;
+
 function renderRing() {
   const d = dayProgress(dayWindow); // TZ: Europe/Budapest inside dayProgress
   setRing($('#ring-slot'), d.progress);
 
   const ph = phaseOf(Number(d.now.slice(0, 2)));
-  $('#ring-pct').textContent = `${Math.round(d.progress * 100)}%`;
+  const pct = Math.round(d.progress * 100);
+  if (pctIntroDone) {
+    $('#ring-pct').textContent = `${pct}%`;
+  } else {
+    // first paint: count up 0 → pct alongside the arc sweep
+    pctIntroDone = true;
+    const el = $('#ring-pct');
+    const t0 = performance.now();
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / 1100);
+      el.textContent = `${Math.round(pct * (1 - (1 - k) ** 3))}%`; // ease-out cubic
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
   $('#ring-phase').textContent = ph.label;
   $('#ring-time').textContent = d.clock; // HH:MM:SS — visibly alive
   $('#phase-emoji').textContent = ph.emoji;

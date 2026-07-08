@@ -121,15 +121,45 @@ export function emptyStateHTML(message = 'Nincs naplózva', actionHTML = '') {
 
 /* ---------- day ring (SVG) ---------- */
 
-// Single continuous accent arc on a faint track; progress is set via stroke-dashoffset.
+// Gradient arc on a faint track, with a glowing dot riding the arc tip and
+// (on large rings) a clock-face tick ring. Progress is set via stroke-dashoffset
+// for the arc and a rotation for the dot arm — both CSS-transitioned, so the
+// initial render sweeps in and per-second updates crawl smoothly.
 export function ringSVG(size, stroke) {
   const r = (size - stroke) / 2;
   const c = (2 * Math.PI * r).toFixed(2);
   const mid = size / 2;
+  const gid = `ring-grad-${size}`; // gradient ids are document-global: key by size
+
+  let ticks = '';
+  if (size >= 120) {
+    const inner = r - stroke * 1.5;
+    const outer = r - stroke * 0.95;
+    const lines = [];
+    for (let i = 0; i < 60; i++) {
+      const a = (i / 60) * 2 * Math.PI;
+      const [cos, sin] = [Math.cos(a), Math.sin(a)];
+      lines.push(`<line x1="${(mid + inner * cos).toFixed(1)}" y1="${(mid + inner * sin).toFixed(1)}" x2="${(mid + outer * cos).toFixed(1)}" y2="${(mid + outer * sin).toFixed(1)}"/>`);
+    }
+    ticks = `<g class="ring-ticks">${lines.join('')}</g>`;
+  }
+
   return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+    <defs>
+      <linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#6D28D9"></stop>
+        <stop offset=".55" stop-color="#8B5CF6"></stop>
+        <stop offset="1" stop-color="#C4B5FD"></stop>
+      </linearGradient>
+    </defs>
     <circle class="ring-track" cx="${mid}" cy="${mid}" r="${r}" stroke-width="${stroke}"></circle>
-    <circle class="ring-arc" cx="${mid}" cy="${mid}" r="${r}" stroke-width="${stroke}"
+    ${ticks}
+    <circle class="ring-arc" stroke="url(#${gid})" cx="${mid}" cy="${mid}" r="${r}" stroke-width="${stroke}"
       stroke-dasharray="${c}" stroke-dashoffset="${c}"></circle>
+    <g class="ring-arm">
+      <circle class="ring-dot-glow" cx="${mid + r}" cy="${mid}" r="${(stroke * 1.15).toFixed(1)}"></circle>
+      <circle class="ring-dot" cx="${mid + r}" cy="${mid}" r="${(stroke * 0.42).toFixed(1)}"></circle>
+    </g>
   </svg>`;
 }
 
@@ -138,4 +168,6 @@ export function setRing(root, progress) {
   if (!arc) return;
   const c = parseFloat(arc.getAttribute('stroke-dasharray'));
   arc.setAttribute('stroke-dashoffset', (c * (1 - progress)).toFixed(2));
+  const arm = root.querySelector('.ring-arm');
+  if (arm) arm.style.transform = `rotate(${(progress * 360).toFixed(2)}deg)`;
 }
