@@ -1,4 +1,4 @@
-// Life OS — shared UI + timezone helpers. No Supabase import here (pages that
+// Dominik's Dashboard — shared UI + timezone helpers. No Supabase import here (pages that
 // only need layout must not depend on the CDN client).
 
 export const TZ = 'Europe/Budapest';

@@ -1,4 +1,4 @@
-// Life OS — module registry.
+// Dominik's Dashboard — module registry.
 // The home grid (index.html) renders FROM THIS ARRAY ONLY:
 // adding a module = one new entry here + one new HTML file in /modules.
 export const MODULE_REGISTRY = [

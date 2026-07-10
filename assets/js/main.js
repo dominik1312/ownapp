@@ -1,4 +1,4 @@
-// Life OS — Main module page: "Daily rhythm" phase ring + today's tasks, plus a
+// Dominik's Dashboard — Main module page: "Daily rhythm" phase ring + today's tasks, plus a
 // "plan tomorrow" card underneath (Supabase-backed; one `tasks` table, keyed by for_date).
 import { supabase } from './supabase.js';
 import {

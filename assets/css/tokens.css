@@ -1,4 +1,4 @@
-/* Life OS — design tokens. Reused by every page; do not fork these values. */
+/* Dominik's Dashboard — design tokens. Reused by every page; do not fork these values. */
 :root{
   --bg:#0A0A0B; --card:#111114;
   --line:rgba(255,255,255,.06); --line-2:rgba(255,255,255,.12);

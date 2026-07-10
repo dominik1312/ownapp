@@ -1,4 +1,4 @@
--- Life OS — Money module storage. Run ONCE in the Supabase SQL Editor.
+-- Dominik's Dashboard — Money module storage. Run ONCE in the Supabase SQL Editor.
 -- One shared table: the five Money lists (accounts / income / categories /
 -- subs / goals) are rows discriminated by `list`, mirroring the UI state in
 -- assets/js/money.js. Amounts are HUF. Follows the conventions of the

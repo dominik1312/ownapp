@@ -1,4 +1,4 @@
-// Life OS — Money module: net worth, flow (income/expense), subscriptions,
+// Dominik's Dashboard — Money module: net worth, flow (income/expense), subscriptions,
 // savings goals. Persisted in Supabase: one `finance_items` table shared by
 // the five UI lists via its `list` column — see sql/finance.sql (run once in
 // the Supabase SQL Editor). Amounts are HUF.

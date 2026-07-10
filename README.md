@@ -1,4 +1,4 @@
-# Life OS
+# Dominik's Dashboard
 
 Personal life dashboard. Phase 1: project skeleton + Main module (day-progress ring + today's tasks).
 
