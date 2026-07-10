@@ -9,7 +9,7 @@ create table if not exists public.finance_items (
   list text not null check (list in ('accounts', 'income', 'categories', 'subs', 'goals')),
   name text not null,
   amount numeric not null default 0,          -- accounts / income / categories / subs
-  type text,                                  -- accounts: subtitle (e.g. "Folyószámla · OTP")
+  type text,                                  -- accounts: subtitle (e.g. "Checking · OTP")
   day integer check (day between 1 and 31),   -- subs: renewal day of month
   target numeric,                             -- goals
   saved numeric,                              -- goals
@@ -28,17 +28,17 @@ create policy "anon full access finance_items"
 
 -- Optional starter data (same as the old in-memory demo) — uncomment to load:
 -- insert into public.finance_items (list, name, amount, type) values
---   ('accounts', 'Készpénz', 640000, 'Folyószámla · OTP'),
---   ('accounts', 'Megtakarítás', 3200000, 'Lekötött betét'),
---   ('accounts', 'Befektetés', 4800000, 'ETF portfólió');
+--   ('accounts', 'Cash', 640000, 'Checking · OTP'),
+--   ('accounts', 'Savings', 3200000, 'Fixed deposit'),
+--   ('accounts', 'Investment', 4800000, 'ETF portfolio');
 -- insert into public.finance_items (list, name, amount) values
---   ('income', 'Fizetés', 640000),
+--   ('income', 'Salary', 640000),
 --   ('income', 'Freelance', 80000),
---   ('categories', 'Lakhatás', 180000),
---   ('categories', 'Élelmiszer', 96000),
---   ('categories', 'Közlekedés', 42000);
+--   ('categories', 'Housing', 180000),
+--   ('categories', 'Groceries', 96000),
+--   ('categories', 'Transport', 42000);
 -- insert into public.finance_items (list, name, amount, day) values
 --   ('subs', 'Netflix', 4490, 12),
 --   ('subs', 'Spotify', 1990, 3);
 -- insert into public.finance_items (list, name, target, saved) values
---   ('goals', 'Vészhelyzeti alap', 3000000, 2100000);
+--   ('goals', 'Emergency fund', 3000000, 2100000);

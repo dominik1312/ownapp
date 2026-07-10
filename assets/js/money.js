@@ -108,9 +108,9 @@ function showError(error) {
   const missing = error?.code === '42P01' || /does not exist|schema cache/i.test(error?.message ?? '');
   clearTimeout(statusTimer);
   if (missing) {
-    el.textContent = 'Hiányzó tábla — futtasd le egyszer a sql/finance.sql tartalmát a Supabase SQL Editorban.';
+    el.textContent = 'Missing table — run sql/finance.sql once in the Supabase SQL Editor.';
   } else {
-    el.textContent = `Hiba: ${error.message}`;
+    el.textContent = `Error: ${error.message}`;
     statusTimer = setTimeout(() => { el.textContent = ''; }, 8000);
   }
 }
@@ -124,7 +124,7 @@ function amountCell(list, item, field, display, extraClass = '') {
   if (e && e.list === list && String(e.id) === String(item.id) && e.field === field) {
     return `<input id="edit-input" class="money-edit-input mono" type="number" step="any" value="${Number(item[field]) || 0}" />`;
   }
-  return `<button type="button" class="money-amount-btn ${extraClass}" title="Kattints a szerkesztéshez" data-action="edit" data-list="${list}" data-id="${item.id}" data-field="${field}">${display}</button>`;
+  return `<button type="button" class="money-amount-btn ${extraClass}" title="Click to edit" data-action="edit" data-list="${list}" data-id="${item.id}" data-field="${field}">${display}</button>`;
 }
 
 function commitEdit(raw) {
@@ -140,10 +140,10 @@ function commitEdit(raw) {
 /* ---------- tabs ---------- */
 
 const TAB_DEFS = [
-  { key: 'net', label: 'Nettó vagyon' },
+  { key: 'net', label: 'Net worth' },
   { key: 'flow', label: 'Flow' },
-  { key: 'subs', label: 'Előfizetések' },
-  { key: 'save', label: 'Megtakarítás' },
+  { key: 'subs', label: 'Subscriptions' },
+  { key: 'save', label: 'Savings' },
 ];
 
 function renderTabs() {
@@ -171,33 +171,33 @@ function renderNetWorth() {
             <div class="money-bar-track"><span class="money-bar-fill" style="background:${color};width:${pct}%;"></span></div>
             <span class="money-row-pct">${pct}%</span>
           </div>
-          <span class="money-row-type">${escapeHtml(a.type || 'Számla')}</span>
+          <span class="money-row-type">${escapeHtml(a.type || 'Account')}</span>
         </div>
-        <button type="button" class="money-del-btn" title="Törlés" data-action="delete" data-list="accounts" data-id="${a.id}">×</button>
+        <button type="button" class="money-del-btn" title="Delete" data-action="delete" data-list="accounts" data-id="${a.id}">×</button>
       </div>`;
     }).join('')
-    : emptyStateHTML('Nincs még számla felvéve.');
+    : emptyStateHTML('No accounts added yet.');
 
   const shareSegs = state.accounts.map((a, i) => `<span class="money-share-seg" style="width:${(a.amount / total) * 100}%;background:${PALETTE[i % PALETTE.length]};"></span>`).join('');
 
   const form = state.openForm === 'account' ? `
     <form class="card money-inline-form" data-form="add-account">
-      <input name="acc_name" placeholder="Név (pl. Revolut)" required maxlength="40" class="money-f-grow2" />
-      <input name="acc_type" placeholder="Típus" maxlength="30" class="money-f-grow1" />
-      <input name="acc_amount" type="number" placeholder="Egyenleg" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--gold">Mentés</button>
+      <input name="acc_name" placeholder="Name (e.g. Revolut)" required maxlength="40" class="money-f-grow2" />
+      <input name="acc_type" placeholder="Type" maxlength="30" class="money-f-grow1" />
+      <input name="acc_amount" type="number" placeholder="Balance" required class="money-f-grow1 mono" />
+      <button type="submit" class="money-form-submit money-form-submit--gold">Save</button>
     </form>` : '';
 
   return `
     <section class="card money-hero">
-      <p class="money-hero-eyebrow">Teljes nettó vagyon</p>
+      <p class="money-hero-eyebrow">Total net worth</p>
       <p class="money-hero-value">${fmt(sum(state.accounts, 'amount'))}</p>
-      <p class="money-hero-sub">${state.accounts.length} számla</p>
+      <p class="money-hero-sub">${state.accounts.length} accounts</p>
       <div class="money-share-bar">${shareSegs}</div>
     </section>
     <div class="section-label">
-      <span class="rule rule-s"></span>SZÁMLÁK<span class="rule"></span>
-      <button type="button" class="money-add-btn money-add-btn--gold" data-action="toggle-form" data-key="account">+ Számla</button>
+      <span class="rule rule-s"></span>ACCOUNTS<span class="rule"></span>
+      <button type="button" class="money-add-btn money-add-btn--gold" data-action="toggle-form" data-key="account">+ Account</button>
     </div>
     ${form}
     ${rows}`;
@@ -220,49 +220,49 @@ function renderFlow() {
       return `<div>
         <div class="money-cat-head">
           <span class="money-cat-name"><span class="money-cat-pct">${pctLabel}%</span>${escapeHtml(c.name)}</span>
-          <span class="money-cat-amount-wrap">${amountCell('categories', c, 'amount', fmt(c.amount), 'mono')}<button type="button" class="money-del-btn money-del-btn--sm" title="Törlés" data-action="delete" data-list="categories" data-id="${c.id}">×</button></span>
+          <span class="money-cat-amount-wrap">${amountCell('categories', c, 'amount', fmt(c.amount), 'mono')}<button type="button" class="money-del-btn money-del-btn--sm" title="Delete" data-action="delete" data-list="categories" data-id="${c.id}">×</button></span>
         </div>
         <div class="money-bar-track money-bar-track--tall"><span class="money-bar-fill money-bar-fill--gold" style="width:${barWidth}%;"></span></div>
       </div>`;
     }).join('')
-    : emptyStateHTML('Nincs még kiadás kategória felvéve.');
+    : emptyStateHTML('No expense categories added yet.');
 
   const incomeHtml = state.income.length
     ? state.income.map((inc) => `<div class="card money-income-row">
         <span class="money-income-left"><span class="money-dot money-dot--sm" style="background:var(--ok);box-shadow:0 0 8px var(--ok);"></span><span>${escapeHtml(inc.name)}</span></span>
-        <span class="money-income-left">${amountCell('income', inc, 'amount', `+${fmt(inc.amount)}`, 'money-income-amount mono')}<button type="button" class="money-del-btn" title="Törlés" data-action="delete" data-list="income" data-id="${inc.id}">×</button></span>
+        <span class="money-income-left">${amountCell('income', inc, 'amount', `+${fmt(inc.amount)}`, 'money-income-amount mono')}<button type="button" class="money-del-btn" title="Delete" data-action="delete" data-list="income" data-id="${inc.id}">×</button></span>
       </div>`).join('')
-    : emptyStateHTML('Nincs még bevétel forrás felvéve.');
+    : emptyStateHTML('No income sources added yet.');
 
   const expenseForm = state.openForm === 'expense' ? `
     <form class="card money-inline-form" data-form="add-expense">
-      <input name="cat_name" placeholder="Kategória" required maxlength="40" class="money-f-grow2" />
-      <input name="cat_amount" type="number" placeholder="Összeg" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--red">Mentés</button>
+      <input name="cat_name" placeholder="Category" required maxlength="40" class="money-f-grow2" />
+      <input name="cat_amount" type="number" placeholder="Amount" required class="money-f-grow1 mono" />
+      <button type="submit" class="money-form-submit money-form-submit--red">Save</button>
     </form>` : '';
 
   const incomeForm = state.openForm === 'income' ? `
     <form class="card money-inline-form" data-form="add-income">
-      <input name="in_name" placeholder="Forrás (pl. Fizetés)" required maxlength="40" class="money-f-grow2" />
-      <input name="in_amount" type="number" placeholder="Összeg" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--green">Mentés</button>
+      <input name="in_name" placeholder="Source (e.g. Salary)" required maxlength="40" class="money-f-grow2" />
+      <input name="in_amount" type="number" placeholder="Amount" required class="money-f-grow1 mono" />
+      <button type="submit" class="money-form-submit money-form-submit--green">Save</button>
     </form>` : '';
 
   return `
     <div class="money-stat-grid">
-      <div class="card money-stat-card"><p class="money-stat-label">Bevétel</p><p class="money-stat-value" style="color:var(--ok);">${fmt(incomeTotal)}</p></div>
-      <div class="card money-stat-card"><p class="money-stat-label">Kiadás</p><p class="money-stat-value" style="color:#FF8A7A;">${fmt(expenseTotal)}</p></div>
-      <div class="card money-stat-card"><p class="money-stat-label">Nettó / hó</p><p class="money-stat-value" style="color:${netColor};">${netFmt}</p></div>
+      <div class="card money-stat-card"><p class="money-stat-label">Income</p><p class="money-stat-value" style="color:var(--ok);">${fmt(incomeTotal)}</p></div>
+      <div class="card money-stat-card"><p class="money-stat-label">Expenses</p><p class="money-stat-value" style="color:#FF8A7A;">${fmt(expenseTotal)}</p></div>
+      <div class="card money-stat-card"><p class="money-stat-label">Net / mo</p><p class="money-stat-value" style="color:${netColor};">${netFmt}</p></div>
     </div>
     <div class="section-label">
-      <span class="rule rule-s"></span>KIADÁS KATEGÓRIÁNKÉNT<span class="rule"></span>
-      <button type="button" class="money-add-btn money-add-btn--red" data-action="toggle-form" data-key="expense">+ Kiadás</button>
+      <span class="rule rule-s"></span>EXPENSES BY CATEGORY<span class="rule"></span>
+      <button type="button" class="money-add-btn money-add-btn--red" data-action="toggle-form" data-key="expense">+ Expense</button>
     </div>
     ${expenseForm}
     <section class="card money-cat-section">${categoriesHtml}</section>
     <div class="section-label">
-      <span class="rule rule-s"></span>BEVÉTEL FORRÁSOK<span class="rule"></span>
-      <button type="button" class="money-add-btn money-add-btn--green" data-action="toggle-form" data-key="income">+ Bevétel</button>
+      <span class="rule rule-s"></span>INCOME SOURCES<span class="rule"></span>
+      <button type="button" class="money-add-btn money-add-btn--green" data-action="toggle-form" data-key="income">+ Income</button>
     </div>
     ${incomeForm}
     ${incomeHtml}`;
@@ -280,30 +280,30 @@ function renderSubs() {
         <span class="money-sub-avatar">${escapeHtml(initial)}</span>
         <div class="money-sub-main">
           <div class="money-sub-name">${escapeHtml(x.name)}</div>
-          <div class="money-sub-renew">Megújul: minden hó ${x.day}-én</div>
+          <div class="money-sub-renew">Renews monthly on day ${x.day}</div>
         </div>
         ${amountCell('subs', x, 'amount', fmt(x.amount), 'money-sub-amount mono')}
-        <button type="button" class="money-del-btn" title="Lemondás" data-action="delete" data-list="subs" data-id="${x.id}">×</button>
+        <button type="button" class="money-del-btn" title="Cancel" data-action="delete" data-list="subs" data-id="${x.id}">×</button>
       </div>`;
     }).join('')
-    : emptyStateHTML('Nincs még előfizetés felvéve.');
+    : emptyStateHTML('No subscriptions added yet.');
 
   const form = state.openForm === 'sub' ? `
     <form class="card money-inline-form" data-form="add-sub">
-      <input name="sub_name" placeholder="Szolgáltatás" required maxlength="40" class="money-f-grow2" />
-      <input name="sub_amount" type="number" placeholder="Ft / hó" required class="money-f-grow1 mono" />
-      <input name="sub_day" type="number" min="1" max="31" placeholder="Nap (1–31)" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--gold">Mentés</button>
+      <input name="sub_name" placeholder="Service" required maxlength="40" class="money-f-grow2" />
+      <input name="sub_amount" type="number" placeholder="Ft / mo" required class="money-f-grow1 mono" />
+      <input name="sub_day" type="number" min="1" max="31" placeholder="Day (1–31)" required class="money-f-grow1 mono" />
+      <button type="submit" class="money-form-submit money-form-submit--gold">Save</button>
     </form>` : '';
 
   return `
     <section class="money-summary-grid">
-      <div class="card money-stat-card"><p class="money-stat-label">Havonta</p><p class="money-summary-value">${fmt(monthly)}</p></div>
-      <div class="card money-stat-card"><p class="money-stat-label">Évente</p><p class="money-summary-value" style="color:#F5B95F;">${fmt(monthly * 12)}</p></div>
+      <div class="card money-stat-card"><p class="money-stat-label">Monthly</p><p class="money-summary-value">${fmt(monthly)}</p></div>
+      <div class="card money-stat-card"><p class="money-stat-label">Yearly</p><p class="money-summary-value" style="color:#F5B95F;">${fmt(monthly * 12)}</p></div>
     </section>
     <div class="section-label">
-      <span class="rule rule-s"></span>AKTÍV ELŐFIZETÉSEK<span class="rule"></span>
-      <button type="button" class="money-add-btn money-add-btn--gold" data-action="toggle-form" data-key="sub">+ Előfizetés</button>
+      <span class="rule rule-s"></span>ACTIVE SUBSCRIPTIONS<span class="rule"></span>
+      <button type="button" class="money-add-btn money-add-btn--gold" data-action="toggle-form" data-key="sub">+ Subscription</button>
     </div>
     ${form}
     ${subsHtml}`;
@@ -326,7 +326,7 @@ function renderSave() {
       return `<div class="card money-goal-card">
         <div class="money-goal-head">
           <span class="money-goal-name">${escapeHtml(g.name)}</span>
-          <span class="money-goal-nums">${amountCell('goals', g, 'saved', fmt(g.saved), 'money-goal-fig mono')}<span class="money-goal-fig">/</span>${amountCell('goals', g, 'target', fmt(g.target), 'money-goal-fig mono')}<button type="button" class="money-del-btn money-del-btn--sm" title="Törlés" data-action="delete" data-list="goals" data-id="${g.id}">×</button></span>
+          <span class="money-goal-nums">${amountCell('goals', g, 'saved', fmt(g.saved), 'money-goal-fig mono')}<span class="money-goal-fig">/</span>${amountCell('goals', g, 'target', fmt(g.target), 'money-goal-fig mono')}<button type="button" class="money-del-btn money-del-btn--sm" title="Delete" data-action="delete" data-list="goals" data-id="${g.id}">×</button></span>
         </div>
         <div class="money-goal-bar-row">
           <div class="money-bar-track"><span class="money-bar-fill money-bar-fill--gold" style="width:${pct}%;"></span></div>
@@ -334,21 +334,21 @@ function renderSave() {
         </div>
       </div>`;
     }).join('')
-    : emptyStateHTML('Nincs még megtakarítási cél felvéve.');
+    : emptyStateHTML('No savings goals added yet.');
 
   const contribForm = state.openForm === 'contrib' ? `
     <form class="card money-inline-form" data-form="contribute">
       <select name="c_goal" class="money-f-grow2">${goalOptions}</select>
-      <input name="c_amount" type="number" placeholder="Összeg" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--gold">Befizet</button>
+      <input name="c_amount" type="number" placeholder="Amount" required class="money-f-grow1 mono" />
+      <button type="submit" class="money-form-submit money-form-submit--gold">Deposit</button>
     </form>` : '';
 
   const goalForm = state.openForm === 'goal' ? `
     <form class="card money-inline-form" data-form="add-goal">
-      <input name="goal_name" placeholder="Cél neve" required maxlength="40" class="money-f-grow2" />
-      <input name="goal_target" type="number" placeholder="Cél összeg" required class="money-f-grow1 mono" />
-      <input name="goal_saved" type="number" placeholder="Meglévő" class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--gold">Létrehoz</button>
+      <input name="goal_name" placeholder="Goal name" required maxlength="40" class="money-f-grow2" />
+      <input name="goal_target" type="number" placeholder="Target amount" required class="money-f-grow1 mono" />
+      <input name="goal_saved" type="number" placeholder="Current" class="money-f-grow1 mono" />
+      <button type="submit" class="money-form-submit money-form-submit--gold">Create</button>
     </form>` : '';
 
   return `
@@ -360,22 +360,22 @@ function renderSave() {
         </svg>
         <div class="money-ring-center">
           <span class="money-ring-pct">${Math.round(primaryPct)}%</span>
-          <span class="money-ring-label">kész</span>
+          <span class="money-ring-label">done</span>
         </div>
       </div>
       <div class="money-save-info">
-        <p class="money-save-eyebrow">Elsődleges cél</p>
+        <p class="money-save-eyebrow">Primary goal</p>
         <p class="money-save-goal-name">${primary ? escapeHtml(primary.name) : '—'}</p>
         <div class="money-save-amount-row">
           <span class="money-save-saved mono">${primary ? fmt(primary.saved) : fmt(0)}</span>
           <span class="money-save-target">/ ${primary ? fmt(primary.target) : fmt(0)}</span>
         </div>
-        <p class="money-save-remain">Még ${primary ? fmt(Math.max(0, primary.target - primary.saved)) : fmt(0)} a célig</p>
+        <p class="money-save-remain">${primary ? fmt(Math.max(0, primary.target - primary.saved)) : fmt(0)} left to goal</p>
       </div>
     </section>
     <div class="money-save-actions">
-      <button type="button" class="money-save-action-btn money-save-action-btn--gold" data-action="toggle-form" data-key="contrib">+ Befizetés</button>
-      <button type="button" class="money-save-action-btn money-save-action-btn--ghost" data-action="toggle-form" data-key="goal">+ Új cél</button>
+      <button type="button" class="money-save-action-btn money-save-action-btn--gold" data-action="toggle-form" data-key="contrib">+ Deposit</button>
+      <button type="button" class="money-save-action-btn money-save-action-btn--ghost" data-action="toggle-form" data-key="goal">+ New goal</button>
     </div>
     ${contribForm}
     ${goalForm}
@@ -390,7 +390,7 @@ function render() {
   $('#money-tabs').innerHTML = renderTabs();
   $('#money-panel').innerHTML = state.loaded
     ? PANELS[state.tab]()
-    : emptyStateHTML('Betöltés…');
+    : emptyStateHTML('Loading…');
   const input = $('#edit-input');
   if (input) { input.focus(); input.select(); }
 }
@@ -433,7 +433,7 @@ $('#money-panel').addEventListener('submit', (e) => {
 
   switch (form.dataset.form) {
     case 'add-account':
-      pushItem('accounts', { name: str('acc_name'), type: str('acc_type') || 'Számla', amount: num('acc_amount') });
+      pushItem('accounts', { name: str('acc_name'), type: str('acc_type') || 'Account', amount: num('acc_amount') });
       break;
     case 'add-expense':
       pushItem('categories', { name: str('cat_name'), amount: num('cat_amount') });

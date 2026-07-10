@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="hu">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -25,7 +25,7 @@
     import { budapestToday, dayProgress, loadDayWindow, ringSVG, setRing, escapeHtml, TZ } from './assets/js/ui.js';
 
     // TZ: Europe/Budapest — header date shows the Budapest calendar day.
-    document.getElementById('today').textContent = new Intl.DateTimeFormat('hu-HU', {
+    document.getElementById('today').textContent = new Intl.DateTimeFormat('en-US', {
       timeZone: TZ, year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
     }).format(new Date());
 
@@ -71,7 +71,7 @@
           <span class="mini-ring">${ringSVG(56, 6)}</span>
           <span class="mini-meta">
             <span class="mini-count">${tasks.filter((t) => t.done).length}/${tasks.length}</span>
-            <span class="mini-next">${next ? escapeHtml(next.title) : 'Nincs több mára'}</span>
+            <span class="mini-next">${next ? escapeHtml(next.title) : 'Nothing left today'}</span>
           </span>`;
         const tick = () => setRing(slot, dayProgress(dayWindow).progress); // TZ: Europe/Budapest
         tick();

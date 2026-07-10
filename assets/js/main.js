@@ -1,4 +1,4 @@
-// Life OS — Main module page: "Napi ritmus" phase ring + today's tasks, plus a
+// Life OS — Main module page: "Daily rhythm" phase ring + today's tasks, plus a
 // "plan tomorrow" card underneath (Supabase-backed; one `tasks` table, keyed by for_date).
 import { supabase } from './supabase.js';
 import {
@@ -17,14 +17,14 @@ const cards = {
   [today]: {
     list: '#task-list', empty: '#empty-slot', status: '#status',
     form: '#add-form', title: '#f-title', category: '#f-category', time: '#f-time',
-    moveGlyph: '→', moveHint: 'Áttesz holnapra',
-    emptyText: 'Nincs naplózva — nincs mai feladat.', addLabel: '+ Add task',
+    moveGlyph: '→', moveHint: 'Move to tomorrow',
+    emptyText: 'Nothing logged — no tasks today.', addLabel: '+ Add task',
   },
   [tomorrow]: {
     list: '#task-list-tmrw', empty: '#empty-slot-tmrw', status: '#status-tmrw',
     form: '#add-form-tmrw', title: '#f2-title', category: '#f2-category', time: '#f2-time',
-    moveGlyph: '←', moveHint: 'Vissza mára',
-    emptyText: 'Még üres a holnapi terv.', addLabel: '+ Plan task',
+    moveGlyph: '←', moveHint: 'Move back to today',
+    emptyText: "Tomorrow's plan is still empty.", addLabel: '+ Plan task',
   },
 };
 
@@ -57,18 +57,18 @@ async function init() {
   await loadTasks();
 }
 
-/* ---------- "Napi ritmus" phase ring ---------- */
+/* ---------- "Daily rhythm" phase ring ---------- */
 // The ring fills across the CURRENT PHASE of the day (not the whole day) and
 // resets at each phase boundary — design imported from "Day Ring - standalone".
 
 const PHASES = [
-  { key: 'morning', label: 'Reggel', title: 'Reggeli lendület', start: 6, end: 12,
+  { key: 'morning', label: 'Morning', title: 'Morning momentum', start: 6, end: 12,
     icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M12 20v2"/><path d="M12 8a4 4 0 0 0-4 4"/></svg>' },
-  { key: 'afternoon', label: 'Délután', title: 'Mélymunka', start: 12, end: 18,
+  { key: 'afternoon', label: 'Afternoon', title: 'Deep work', start: 12, end: 18,
     icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>' },
-  { key: 'evening', label: 'Este', title: 'Lezárás', start: 18, end: 23,
+  { key: 'evening', label: 'Evening', title: 'Wind-down', start: 18, end: 23,
     icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>' },
-  { key: 'night', label: 'Éjszaka', title: 'Pihenő', start: 23, end: 6,
+  { key: 'night', label: 'Night', title: 'Rest', start: 23, end: 6,
     icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>' },
 ];
 
@@ -116,8 +116,8 @@ function renderRing() {
   const remH = Math.floor(remaining);
   const remM = Math.round((remaining - remH) * 60);
   $('#meta-remaining').textContent = remaining <= 0
-    ? 'Fázis vége'
-    : `Még ${remH > 0 ? `${remH} óra ` : ''}${remM} perc van hátra`;
+    ? 'Phase over'
+    : `${remH > 0 ? `${remH} hr ` : ''}${remM} min remaining`;
 
   // phase-dependent bits only change at phase boundaries
   if (ph.key !== activePhaseKey) {
@@ -141,7 +141,7 @@ async function loadTasks() {
     .in('for_date', [today, tomorrow]) // TZ: Europe/Budapest — see budapestToday()
     .order('scheduled_at', { ascending: true, nullsFirst: false })
     .order('sort', { ascending: true });
-  if (error) return showError(today, `Betöltési hiba: ${error.message}`);
+  if (error) return showError(today, `Load error: ${error.message}`);
   byDate = { [today]: [], [tomorrow]: [] };
   for (const t of data ?? []) byDate[t.for_date]?.push(t);
   renderAll();
@@ -154,7 +154,7 @@ function renderAll() {
   // ticker — the next thing still to do today, over the ring
   const next = todays.find((t) => !t.done);
   $('#ticker-text').textContent =
-    next ? next.title : (todays.length ? 'Minden kész mára 🎉' : 'Nincs mai feladat');
+    next ? next.title : (todays.length ? 'All done for today 🎉' : 'No tasks today');
   $('#ticker-count').textContent = `${done}/${todays.length}`;
 
   // today card counters + one progress segment per task
@@ -200,13 +200,13 @@ function renderList(date) {
 function taskRow(t, c) {
   const time = t.scheduled_at ? budapestHHMM(t.scheduled_at) : ''; // TZ: Europe/Budapest in helper
   return `<li class="task${t.done ? ' is-done' : ''}" data-id="${t.id}">
-    <button class="task-check" type="button" role="checkbox" aria-checked="${!!t.done}" aria-label="Kész"></button>
-    <span class="task-title" title="Kattints a szerkesztéshez">${escapeHtml(t.title)}</span>
+    <button class="task-check" type="button" role="checkbox" aria-checked="${!!t.done}" aria-label="Done"></button>
+    <span class="task-title" title="Click to edit">${escapeHtml(t.title)}</span>
     ${t.category ? `<span class="tag">${escapeHtml(t.category)}</span>` : ''}
     ${time ? `<span class="task-time">${time}</span>` : ''}
     <span class="task-actions">
       <button class="task-btn btn-push" type="button" title="${c.moveHint}">${c.moveGlyph}</button>
-      <button class="task-btn btn-del" type="button" title="Törlés">×</button>
+      <button class="task-btn btn-del" type="button" title="Delete">×</button>
     </span>
   </li>`;
 }
@@ -231,7 +231,7 @@ async function onToggle(date, id) {
   if (error) {
     Object.assign(t, prev); // revert on failure
     renderAll();
-    showError(date, `Mentési hiba: ${error.message}`);
+    showError(date, `Save error: ${error.message}`);
   }
 }
 
@@ -245,7 +245,7 @@ async function onDelete(date, id) {
   if (error) {
     byDate[date].splice(idx, 0, t); // revert on failure
     renderAll();
-    showError(date, `Törlési hiba: ${error.message}`);
+    showError(date, `Delete error: ${error.message}`);
   }
 }
 
@@ -272,7 +272,7 @@ async function onMove(from, id) {
     byDate[to].splice(byDate[to].indexOf(moved), 1); // revert on failure
     byDate[from].splice(idx, 0, t);
     renderAll();
-    showError(from, `Mentési hiba: ${error.message}`);
+    showError(from, `Save error: ${error.message}`);
   }
 }
 
@@ -303,7 +303,7 @@ function startEdit(date, id, row) {
     if (error) {
       t.title = prev;
       renderAll();
-      showError(date, `Mentési hiba: ${error.message}`);
+      showError(date, `Save error: ${error.message}`);
     }
   }
 
@@ -331,7 +331,7 @@ async function onAdd(e, date) {
     .insert({ title, category, scheduled_at, for_date: date, done: false, sort })
     .select()
     .single();
-  if (error) return showError(date, `Mentési hiba: ${error.message}`);
+  if (error) return showError(date, `Save error: ${error.message}`);
 
   list.push(data);
   sortTasks(list);

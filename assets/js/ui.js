@@ -114,8 +114,8 @@ export function escapeHtml(s) {
   }[c]));
 }
 
-// App-wide "Nincs naplózva" style empty-state card.
-export function emptyStateHTML(message = 'Nincs naplózva', actionHTML = '') {
+// App-wide "Nothing logged" style empty-state card.
+export function emptyStateHTML(message = 'Nothing logged', actionHTML = '') {
   return `<div class="empty-card"><span class="empty-emoji">◌</span><p>${escapeHtml(message)}</p>${actionHTML}</div>`;
 }
 

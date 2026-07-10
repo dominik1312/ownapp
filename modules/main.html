@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="hu">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -29,7 +29,7 @@
 
       <section class="card rhythm-card">
         <div class="rhythm-inner">
-          <p class="rhythm-eyebrow">Napi ritmus</p>
+          <p class="rhythm-eyebrow">Daily rhythm</p>
           <div class="phase-ring-wrap">
             <svg class="phase-ring" viewBox="0 0 200 200" width="220" height="220" aria-hidden="true">
               <circle class="pr-track" cx="100" cy="100" r="90" stroke-width="14"></circle>
@@ -71,11 +71,11 @@
         </div>
         <div class="seg-bar" id="seg-bar"></div>
         <form class="add-form" id="add-form" hidden>
-          <input name="title" id="f-title" placeholder="Feladat…" required maxlength="200" />
-          <input name="category" id="f-category" placeholder="Kategória" maxlength="40" />
+          <input name="title" id="f-title" placeholder="Task…" required maxlength="200" />
+          <input name="category" id="f-category" placeholder="Category" maxlength="40" />
           <input name="time" id="f-time" type="time" />
-          <button class="btn" type="submit">Mentés</button>
-          <button class="btn btn-ghost" id="btn-cancel" type="button">Mégse</button>
+          <button class="btn" type="submit">Save</button>
+          <button class="btn btn-ghost" id="btn-cancel" type="button">Cancel</button>
         </form>
         <ul class="task-list" id="task-list"></ul>
         <div id="empty-slot"></div>
@@ -96,11 +96,11 @@
           <button class="btn" id="btn-add-tmrw" type="button">+ Plan task</button>
         </div>
         <form class="add-form" id="add-form-tmrw" hidden>
-          <input name="title" id="f2-title" placeholder="Holnapi feladat…" required maxlength="200" />
-          <input name="category" id="f2-category" placeholder="Kategória" maxlength="40" />
+          <input name="title" id="f2-title" placeholder="Tomorrow's task…" required maxlength="200" />
+          <input name="category" id="f2-category" placeholder="Category" maxlength="40" />
           <input name="time" id="f2-time" type="time" />
-          <button class="btn" type="submit">Mentés</button>
-          <button class="btn btn-ghost" id="btn-cancel-tmrw" type="button">Mégse</button>
+          <button class="btn" type="submit">Save</button>
+          <button class="btn btn-ghost" id="btn-cancel-tmrw" type="button">Cancel</button>
         </form>
         <ul class="task-list" id="task-list-tmrw"></ul>
         <div id="empty-slot-tmrw"></div>
