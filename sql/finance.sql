@@ -19,6 +19,13 @@ create table if not exists public.finance_items (
 
 create index if not exists finance_items_list_idx on public.finance_items (list);
 
+-- The browser talks to Supabase with the ANON key; give it read/write access
+-- (RLS is on by default when tables are created from the dashboard).
+alter table public.finance_items enable row level security;
+create policy "anon full access finance_items"
+  on public.finance_items for all
+  to anon using (true) with check (true);
+
 -- Optional starter data (same as the old in-memory demo) — uncomment to load:
 -- insert into public.finance_items (list, name, amount, type) values
 --   ('accounts', 'Készpénz', 640000, 'Folyószámla · OTP'),

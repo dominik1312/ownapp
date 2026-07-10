@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lifeos-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "."],
+      "autoPort": true
+    }
+  ]
+}

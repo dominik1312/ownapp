@@ -16,6 +16,7 @@ const LISTS = ['accounts', 'income', 'categories', 'subs', 'goals'];
 const state = {
   tab: 'net',
   openForm: null,
+  editing: null, // { list, id, field } while an amount is being edited in place
   loaded: false,
   accounts: [], income: [], categories: [], subs: [], goals: [],
 };
@@ -23,8 +24,8 @@ const state = {
 const fmt = (n) => `${Math.round(n).toLocaleString('hu-HU')} ${CURRENCY_SUFFIX}`;
 const sum = (arr, key) => arr.reduce((a, b) => a + b[key], 0);
 
-function setTab(tab) { state.tab = tab; state.openForm = null; render(); }
-function toggleForm(key) { state.openForm = state.openForm === key ? null : key; render(); }
+function setTab(tab) { state.tab = tab; state.openForm = null; state.editing = null; render(); }
+function toggleForm(key) { state.openForm = state.openForm === key ? null : key; state.editing = null; render(); }
 
 /* ---------- Supabase CRUD (optimistic where possible) ---------- */
 
@@ -69,6 +70,21 @@ async function delItem(list, id) {
   }
 }
 
+async function patchItem(list, id, changes) {
+  const item = state[list].find((x) => String(x.id) === String(id));
+  if (!item) return;
+  const prev = {};
+  for (const k of Object.keys(changes)) prev[k] = item[k];
+  state[list] = state[list].map((x) => (x === item ? { ...x, ...changes } : x)); // optimistic
+  render();
+  const { error } = await supabase.from(TABLE).update(changes).eq('id', id);
+  if (error) {
+    state[list] = state[list].map((x) => (String(x.id) === String(id) ? { ...x, ...prev } : x));
+    render();
+    showError(error);
+  }
+}
+
 async function contribute(id, amount) {
   const goal = state.goals.find((g) => String(g.id) === String(id));
   if (!goal || !(amount > 0)) return;
@@ -99,6 +115,28 @@ function showError(error) {
   }
 }
 
+/* ---------- inline amount editing ---------- */
+
+// A displayed amount: normally a click-to-edit button, but while this exact
+// cell is being edited it renders as a number input instead.
+function amountCell(list, item, field, display, extraClass = '') {
+  const e = state.editing;
+  if (e && e.list === list && String(e.id) === String(item.id) && e.field === field) {
+    return `<input id="edit-input" class="money-edit-input mono" type="number" step="any" value="${Number(item[field]) || 0}" />`;
+  }
+  return `<button type="button" class="money-amount-btn ${extraClass}" title="Kattints a szerkesztéshez" data-action="edit" data-list="${list}" data-id="${item.id}" data-field="${field}">${display}</button>`;
+}
+
+function commitEdit(raw) {
+  const e = state.editing;
+  if (!e) return;
+  state.editing = null;
+  const item = state[e.list].find((x) => String(x.id) === String(e.id));
+  const value = Number(raw);
+  if (!item || !Number.isFinite(value) || value === Number(item[e.field])) return render();
+  patchItem(e.list, e.id, { [e.field]: value });
+}
+
 /* ---------- tabs ---------- */
 
 const TAB_DEFS = [
@@ -127,7 +165,7 @@ function renderNetWorth() {
         <div class="money-row-main">
           <div class="money-row-head">
             <span class="money-row-name">${escapeHtml(a.name)}</span>
-            <span class="money-row-amount mono">${fmt(a.amount)}</span>
+            ${amountCell('accounts', a, 'amount', fmt(a.amount), 'money-row-amount mono')}
           </div>
           <div class="money-row-bar-line">
             <div class="money-bar-track"><span class="money-bar-fill" style="background:${color};width:${pct}%;"></span></div>
@@ -182,7 +220,7 @@ function renderFlow() {
       return `<div>
         <div class="money-cat-head">
           <span class="money-cat-name"><span class="money-cat-pct">${pctLabel}%</span>${escapeHtml(c.name)}</span>
-          <span class="money-cat-amount-wrap"><span class="mono">${fmt(c.amount)}</span><button type="button" class="money-del-btn money-del-btn--sm" title="Törlés" data-action="delete" data-list="categories" data-id="${c.id}">×</button></span>
+          <span class="money-cat-amount-wrap">${amountCell('categories', c, 'amount', fmt(c.amount), 'mono')}<button type="button" class="money-del-btn money-del-btn--sm" title="Törlés" data-action="delete" data-list="categories" data-id="${c.id}">×</button></span>
         </div>
         <div class="money-bar-track money-bar-track--tall"><span class="money-bar-fill money-bar-fill--gold" style="width:${barWidth}%;"></span></div>
       </div>`;
@@ -192,7 +230,7 @@ function renderFlow() {
   const incomeHtml = state.income.length
     ? state.income.map((inc) => `<div class="card money-income-row">
         <span class="money-income-left"><span class="money-dot money-dot--sm" style="background:var(--ok);box-shadow:0 0 8px var(--ok);"></span><span>${escapeHtml(inc.name)}</span></span>
-        <span class="money-income-left"><span class="money-income-amount mono">+${fmt(inc.amount)}</span><button type="button" class="money-del-btn" title="Törlés" data-action="delete" data-list="income" data-id="${inc.id}">×</button></span>
+        <span class="money-income-left">${amountCell('income', inc, 'amount', `+${fmt(inc.amount)}`, 'money-income-amount mono')}<button type="button" class="money-del-btn" title="Törlés" data-action="delete" data-list="income" data-id="${inc.id}">×</button></span>
       </div>`).join('')
     : emptyStateHTML('Nincs még bevétel forrás felvéve.');
 
@@ -244,7 +282,7 @@ function renderSubs() {
           <div class="money-sub-name">${escapeHtml(x.name)}</div>
           <div class="money-sub-renew">Megújul: minden hó ${x.day}-én</div>
         </div>
-        <span class="money-sub-amount mono">${fmt(x.amount)}</span>
+        ${amountCell('subs', x, 'amount', fmt(x.amount), 'money-sub-amount mono')}
         <button type="button" class="money-del-btn" title="Lemondás" data-action="delete" data-list="subs" data-id="${x.id}">×</button>
       </div>`;
     }).join('')
@@ -288,7 +326,7 @@ function renderSave() {
       return `<div class="card money-goal-card">
         <div class="money-goal-head">
           <span class="money-goal-name">${escapeHtml(g.name)}</span>
-          <span class="money-goal-nums"><span class="money-goal-fig mono">${fmt(g.saved)} / ${fmt(g.target)}</span><button type="button" class="money-del-btn money-del-btn--sm" title="Törlés" data-action="delete" data-list="goals" data-id="${g.id}">×</button></span>
+          <span class="money-goal-nums">${amountCell('goals', g, 'saved', fmt(g.saved), 'money-goal-fig mono')}<span class="money-goal-fig">/</span>${amountCell('goals', g, 'target', fmt(g.target), 'money-goal-fig mono')}<button type="button" class="money-del-btn money-del-btn--sm" title="Törlés" data-action="delete" data-list="goals" data-id="${g.id}">×</button></span>
         </div>
         <div class="money-goal-bar-row">
           <div class="money-bar-track"><span class="money-bar-fill money-bar-fill--gold" style="width:${pct}%;"></span></div>
@@ -353,6 +391,8 @@ function render() {
   $('#money-panel').innerHTML = state.loaded
     ? PANELS[state.tab]()
     : emptyStateHTML('Betöltés…');
+  const input = $('#edit-input');
+  if (input) { input.focus(); input.select(); }
 }
 
 $('#money-tabs').addEventListener('click', (e) => {
@@ -365,6 +405,22 @@ $('#money-panel').addEventListener('click', (e) => {
   if (!btn) return;
   if (btn.dataset.action === 'toggle-form') toggleForm(btn.dataset.key);
   else if (btn.dataset.action === 'delete') delItem(btn.dataset.list, btn.dataset.id);
+  else if (btn.dataset.action === 'edit') {
+    state.editing = { list: btn.dataset.list, id: btn.dataset.id, field: btn.dataset.field };
+    render();
+  }
+});
+
+// inline edit lifecycle — Enter/blur saves, Esc cancels (delegated: the input
+// is re-created on every render)
+$('#money-panel').addEventListener('keydown', (e) => {
+  if (e.target.id !== 'edit-input') return;
+  if (e.key === 'Enter') { e.preventDefault(); commitEdit(e.target.value); }
+  if (e.key === 'Escape') { state.editing = null; render(); }
+});
+
+$('#money-panel').addEventListener('focusout', (e) => {
+  if (e.target.id === 'edit-input') commitEdit(e.target.value);
 });
 
 $('#money-panel').addEventListener('submit', (e) => {
