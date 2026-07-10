@@ -1,6 +1,8 @@
 // Life OS — Money module: net worth, flow (income/expense), subscriptions,
-// savings goals. In-memory only for this phase — no Supabase table yet
-// (see README "Data model"); persistence lands in a later phase.
+// savings goals. Persisted in Supabase: one `finance_items` table shared by
+// the five UI lists via its `list` column — see sql/finance.sql (run once in
+// the Supabase SQL Editor). Amounts are HUF.
+import { supabase } from './supabase.js';
 import { escapeHtml, emptyStateHTML } from './ui.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -8,51 +10,93 @@ const $ = (sel) => document.querySelector(sel);
 const CURRENCY_SUFFIX = 'Ft';
 const PALETTE = ['#33D6C3', '#F5B95F', '#60A5FA', '#A78BFA', '#4ADE80', '#FF8A7A'];
 
-let seq = 1000;
+const TABLE = 'finance_items';
+const LISTS = ['accounts', 'income', 'categories', 'subs', 'goals'];
+
 const state = {
   tab: 'net',
   openForm: null,
-  accounts: [
-    { id: 1, name: 'Készpénz', type: 'Folyószámla · OTP', amount: 640000 },
-    { id: 2, name: 'Megtakarítás', type: 'Lekötött betét', amount: 3200000 },
-    { id: 3, name: 'Befektetés', type: 'ETF portfólió', amount: 4800000 },
-  ],
-  income: [
-    { id: 1, name: 'Fizetés', amount: 640000 },
-    { id: 2, name: 'Freelance', amount: 80000 },
-  ],
-  categories: [
-    { id: 1, name: 'Lakhatás', amount: 180000 },
-    { id: 2, name: 'Élelmiszer', amount: 96000 },
-    { id: 3, name: 'Egyéb', amount: 85000 },
-    { id: 4, name: 'Közlekedés', amount: 42000 },
-    { id: 5, name: 'Szórakozás', amount: 38000 },
-    { id: 6, name: 'Előfizetések', amount: 23360 },
-  ],
-  subs: [
-    { id: 1, name: 'Edzőterem', amount: 12900, day: 5 },
-    { id: 2, name: 'Netflix', amount: 4490, day: 12 },
-    { id: 3, name: 'YouTube Premium', amount: 2990, day: 18 },
-    { id: 4, name: 'Spotify', amount: 1990, day: 3 },
-    { id: 5, name: 'iCloud+', amount: 990, day: 1 },
-  ],
-  goals: [
-    { id: 1, name: 'Vészhelyzeti alap', saved: 2100000, target: 3000000 },
-    { id: 2, name: 'Nyaralás — Japán', saved: 380000, target: 600000 },
-    { id: 3, name: 'Új laptop', saved: 210000, target: 700000 },
-  ],
+  loaded: false,
+  accounts: [], income: [], categories: [], subs: [], goals: [],
 };
 
-const fmt = (n) => `${Math.round(n).toLocaleString('hu-HU')} ${CURRENCY_SUFFIX}`;
+const fmt = (n) => `${Math.round(n).toLocaleString('hu-HU')} ${CURRENCY_SUFFIX}`;
 const sum = (arr, key) => arr.reduce((a, b) => a + b[key], 0);
 
 function setTab(tab) { state.tab = tab; state.openForm = null; render(); }
 function toggleForm(key) { state.openForm = state.openForm === key ? null : key; render(); }
-function delItem(key, id) { state[key] = state[key].filter((x) => String(x.id) !== String(id)); render(); }
-function pushItem(key, obj) {
-  state[key] = [...state[key], { id: ++seq, ...obj }];
+
+/* ---------- Supabase CRUD (optimistic where possible) ---------- */
+
+// numeric columns arrive as strings from PostgREST — coerce once here
+function normalize(row) {
+  return {
+    ...row,
+    amount: Number(row.amount ?? 0),
+    target: Number(row.target ?? 0),
+    saved: Number(row.saved ?? 0),
+  };
+}
+
+async function load() {
+  const { data, error } = await supabase.from(TABLE).select('*')
+    .order('sort').order('created_at');
+  if (error) return showError(error);
+  for (const l of LISTS) state[l] = [];
+  for (const row of data ?? []) state[row.list]?.push(normalize(row));
+  state.loaded = true;
+  render();
+}
+
+async function pushItem(list, obj) {
+  const { data, error } = await supabase.from(TABLE)
+    .insert({ list, ...obj }).select().single();
+  if (error) return showError(error);
+  state[list] = [...state[list], normalize(data)];
   state.openForm = null;
   render();
+}
+
+async function delItem(list, id) {
+  const prev = state[list];
+  state[list] = prev.filter((x) => String(x.id) !== String(id)); // optimistic
+  render();
+  const { error } = await supabase.from(TABLE).delete().eq('id', id);
+  if (error) {
+    state[list] = prev; // revert on failure
+    render();
+    showError(error);
+  }
+}
+
+async function contribute(id, amount) {
+  const goal = state.goals.find((g) => String(g.id) === String(id));
+  if (!goal || !(amount > 0)) return;
+  const prevSaved = goal.saved;
+  const saved = prevSaved + amount;
+  state.goals = state.goals.map((g) => (g === goal ? { ...g, saved } : g)); // optimistic
+  state.openForm = null;
+  render();
+  const { error } = await supabase.from(TABLE).update({ saved }).eq('id', id);
+  if (error) {
+    state.goals = state.goals.map((g) => (String(g.id) === String(id) ? { ...g, saved: prevSaved } : g));
+    render();
+    showError(error);
+  }
+}
+
+let statusTimer;
+function showError(error) {
+  const el = $('#money-status');
+  // Missing table → the one-time setup step hasn't run yet; keep the hint on screen.
+  const missing = error?.code === '42P01' || /does not exist|schema cache/i.test(error?.message ?? '');
+  clearTimeout(statusTimer);
+  if (missing) {
+    el.textContent = 'Hiányzó tábla — futtasd le egyszer a sql/finance.sql tartalmát a Supabase SQL Editorban.';
+  } else {
+    el.textContent = `Hiba: ${error.message}`;
+    statusTimer = setTimeout(() => { el.textContent = ''; }, 8000);
+  }
 }
 
 /* ---------- tabs ---------- */
@@ -89,7 +133,7 @@ function renderNetWorth() {
             <div class="money-bar-track"><span class="money-bar-fill" style="background:${color};width:${pct}%;"></span></div>
             <span class="money-row-pct">${pct}%</span>
           </div>
-          <span class="money-row-type">${escapeHtml(a.type)}</span>
+          <span class="money-row-type">${escapeHtml(a.type || 'Számla')}</span>
         </div>
         <button type="button" class="money-del-btn" title="Törlés" data-action="delete" data-list="accounts" data-id="${a.id}">×</button>
       </div>`;
@@ -110,7 +154,7 @@ function renderNetWorth() {
     <section class="card money-hero">
       <p class="money-hero-eyebrow">Teljes nettó vagyon</p>
       <p class="money-hero-value">${fmt(sum(state.accounts, 'amount'))}</p>
-      <p class="money-hero-sub">${state.accounts.length} számla · frissítve ma</p>
+      <p class="money-hero-sub">${state.accounts.length} számla</p>
       <div class="money-share-bar">${shareSegs}</div>
     </section>
     <div class="section-label">
@@ -306,7 +350,9 @@ const PANELS = { net: renderNetWorth, flow: renderFlow, subs: renderSubs, save: 
 
 function render() {
   $('#money-tabs').innerHTML = renderTabs();
-  $('#money-panel').innerHTML = PANELS[state.tab]();
+  $('#money-panel').innerHTML = state.loaded
+    ? PANELS[state.tab]()
+    : emptyStateHTML('Betöltés…');
 }
 
 $('#money-tabs').addEventListener('click', (e) => {
@@ -345,17 +391,13 @@ $('#money-panel').addEventListener('submit', (e) => {
     case 'add-goal':
       pushItem('goals', { name: str('goal_name'), target: num('goal_target'), saved: num('goal_saved') });
       break;
-    case 'contribute': {
-      const gid = fd.get('c_goal');
-      const amt = num('c_amount');
-      state.goals = state.goals.map((g) => (String(g.id) === String(gid) ? { ...g, saved: g.saved + amt } : g));
-      state.openForm = null;
-      render();
+    case 'contribute':
+      contribute(fd.get('c_goal'), num('c_amount'));
       break;
-    }
     default:
       break;
   }
 });
 
 render();
+load();
