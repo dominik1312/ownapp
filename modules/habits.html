@@ -25,78 +25,92 @@
           <span class="habit-date" id="habitDate"></span>
         </div>
 
-        <!-- Hero ring -->
-        <div class="habit-ring-wrap">
-          <svg class="habit-ring" viewBox="0 0 220 220" aria-hidden="true">
-            <circle class="habit-ring-track" cx="110" cy="110" r="96" />
-            <circle class="habit-ring-fill" cx="110" cy="110" r="96" id="habitRingFill" />
-          </svg>
-          <div class="habit-ring-center">
-            <div class="habit-ring-num">
-              <span id="habitDoneCount">0</span><span class="habit-ring-num-total" id="habitTotalCount"> / 0</span>
+        <div class="habit-grid">
+
+          <!-- Left column: at-a-glance ring + stats -->
+          <div class="habit-col habit-col--overview">
+
+            <!-- Hero ring -->
+            <div class="habit-ring-wrap">
+              <svg class="habit-ring" viewBox="0 0 220 220" aria-hidden="true">
+                <circle class="habit-ring-track" cx="110" cy="110" r="96" />
+                <circle class="habit-ring-fill" cx="110" cy="110" r="96" id="habitRingFill" />
+              </svg>
+              <div class="habit-ring-center">
+                <div class="habit-ring-num">
+                  <span id="habitDoneCount">0</span><span class="habit-ring-num-total" id="habitTotalCount"> / 0</span>
+                </div>
+                <div class="habit-ring-unit">today</div>
+                <div class="habit-ring-label" id="habitRingLabel">—</div>
+              </div>
             </div>
-            <div class="habit-ring-unit">today</div>
-            <div class="habit-ring-label" id="habitRingLabel">—</div>
-          </div>
-        </div>
 
-        <!-- Stats grid -->
-        <div class="habit-stats">
-          <div class="habit-stat">
-            <div class="habit-stat-label">Streak</div>
-            <div class="habit-stat-value" id="statStreak">—</div>
-            <div class="habit-stat-sub">perfect days</div>
-          </div>
-          <div class="habit-stat">
-            <div class="habit-stat-label">Best</div>
-            <div class="habit-stat-value" id="statBest">—</div>
-            <div class="habit-stat-sub">perfect days</div>
-          </div>
-          <div class="habit-stat">
-            <div class="habit-stat-label">This Week</div>
-            <div class="habit-stat-value" id="statWeek">—</div>
-            <div class="habit-stat-sub">avg %</div>
-          </div>
-          <div class="habit-stat">
-            <div class="habit-stat-label">Habits</div>
-            <div class="habit-stat-value" id="statTotal">0</div>
-            <div class="habit-stat-sub">tracked</div>
-          </div>
-        </div>
+            <!-- Stats grid -->
+            <div class="habit-stats">
+              <div class="habit-stat">
+                <div class="habit-stat-label">Streak</div>
+                <div class="habit-stat-value" id="statStreak">—</div>
+                <div class="habit-stat-sub">perfect days</div>
+              </div>
+              <div class="habit-stat">
+                <div class="habit-stat-label">Best</div>
+                <div class="habit-stat-value" id="statBest">—</div>
+                <div class="habit-stat-sub">perfect days</div>
+              </div>
+              <div class="habit-stat">
+                <div class="habit-stat-label">This Week</div>
+                <div class="habit-stat-value" id="statWeek">—</div>
+                <div class="habit-stat-sub">avg %</div>
+              </div>
+              <div class="habit-stat">
+                <div class="habit-stat-label">Habits</div>
+                <div class="habit-stat-value" id="statTotal">0</div>
+                <div class="habit-stat-sub">tracked</div>
+              </div>
+            </div>
 
-        <!-- Today's habit list -->
-        <div class="habit-list-head">
-          <span class="habit-list-eyebrow">Today</span>
-          <button class="habit-edit-btn" id="habitEditBtn" type="button">Edit</button>
-        </div>
-        <div id="habitList"></div>
+            <!-- Today's call verdict -->
+            <div class="habit-verdict" id="habitVerdict" style="display:none">
+              <div class="habit-verdict-head">
+                <span class="habit-verdict-eyebrow">Today's call</span>
+                <span class="habit-verdict-badge" id="habitVerdictBadge"></span>
+              </div>
+              <div class="habit-verdict-text" id="habitVerdictText"></div>
+            </div>
 
-        <!-- 7-day history strip -->
-        <div class="habit-history">
-          <div class="habit-history-head">
-            <span class="habit-history-eyebrow">Last 7 days</span>
-            <span class="habit-history-legend" id="habitHistoryLegend"></span>
           </div>
-          <div class="habit-history-strip" id="habitHistoryStrip"></div>
-        </div>
 
-        <!-- Today's call verdict -->
-        <div class="habit-verdict" id="habitVerdict" style="display:none">
-          <div class="habit-verdict-head">
-            <span class="habit-verdict-eyebrow">Today's call</span>
-            <span class="habit-verdict-badge" id="habitVerdictBadge"></span>
-          </div>
-          <div class="habit-verdict-text" id="habitVerdictText"></div>
-        </div>
+          <!-- Right column: today's list, history, add form -->
+          <div class="habit-col habit-col--detail">
 
-        <!-- Add habit form -->
-        <div class="habit-add-wrap">
-          <div class="habit-add-eyebrow">Add a habit</div>
-          <div class="habit-add-row">
-            <input id="habitEmoji" type="text" placeholder="🎯" class="habit-emoji-input" maxlength="2" autocomplete="off" />
-            <input id="habitName" type="text" placeholder="Habit name (e.g. Meditate)" class="habit-name-input" autocomplete="off" spellcheck="false" />
-            <button id="habitAddBtn" class="habit-add-btn" type="button">+ Add</button>
+            <!-- Today's habit list -->
+            <div class="habit-list-head">
+              <span class="habit-list-eyebrow">Today</span>
+              <button class="habit-edit-btn" id="habitEditBtn" type="button">Edit</button>
+            </div>
+            <div id="habitList"></div>
+
+            <!-- 7-day history strip -->
+            <div class="habit-history">
+              <div class="habit-history-head">
+                <span class="habit-history-eyebrow">Last 7 days</span>
+                <span class="habit-history-legend" id="habitHistoryLegend"></span>
+              </div>
+              <div class="habit-history-strip" id="habitHistoryStrip"></div>
+            </div>
+
+            <!-- Add habit form -->
+            <div class="habit-add-wrap">
+              <div class="habit-add-eyebrow">Add a habit</div>
+              <div class="habit-add-row">
+                <input id="habitEmoji" type="text" placeholder="🎯" class="habit-emoji-input" maxlength="2" autocomplete="off" />
+                <input id="habitName" type="text" placeholder="Habit name (e.g. Meditate)" class="habit-name-input" autocomplete="off" spellcheck="false" />
+                <button id="habitAddBtn" class="habit-add-btn" type="button">+ Add</button>
+              </div>
+            </div>
+
           </div>
+
         </div>
 
       </section>
