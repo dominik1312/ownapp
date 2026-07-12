@@ -1,57 +1,126 @@
-// Dominik's Dashboard — Money module: net worth, flow (income/expense), subscriptions,
-// savings goals. Persisted in Supabase: one `finance_items` table shared by
-// the five UI lists via its `list` column — see sql/finance.sql (run once in
-// the Supabase SQL Editor). Amounts are HUF.
+// Dominik's Dashboard — Money module: net worth, flow (income/expense/bills),
+// subscriptions, savings goals.
+//
+// Two tables in Supabase:
+//   • finance_items  — accounts / subs / goals   (sql/finance.sql)
+//   • finance_flow   — monthly budget lines       (sql/finance_flow.sql)  ← NEW
+//
+// The Flow tab tracks money per MONTH. Each line belongs to a group
+// (income / expense / bills) and stores a Planned (Tervezett) and an
+// Actual (Tényleges) amount. Categories are pre-seeded but fully editable
+// (rename, add, delete, reorder). Starting a new month clones the previous
+// month's categories with actuals reset to 0. Amounts are HUF.
 import { supabase } from './supabase.js';
 import { escapeHtml, emptyStateHTML } from './ui.js';
 
 const $ = (sel) => document.querySelector(sel);
 
 const CURRENCY_SUFFIX = 'Ft';
-const PALETTE = ['#33D6C3', '#F5B95F', '#60A5FA', '#A78BFA', '#4ADE80', '#FF8A7A'];
+const PALETTE = ['#33D6C3', '#F5B95F', '#60A5FA', '#A78BFA', '#4ADE80', '#FF8A7A', '#F472B6', '#FBBF24'];
 
 const TABLE = 'finance_items';
-const LISTS = ['accounts', 'income', 'categories', 'subs', 'goals'];
+const LISTS = ['accounts', 'subs', 'goals']; // flow moved to its own table
+const FLOW_TABLE = 'finance_flow';
+const FIRST_MONTH = '2026-07'; // tracking starts July 2026
+
+// Predefined categories, taken from Költségvetés 2026.xlsx (amounts intentionally 0).
+const DEFAULT_FLOW = {
+  income: ['Vinted sidehustle', 'Egyéb', 'Tartalékból', 'Fűnyírás', 'Anya'],
+  expense: [
+    'Szükséges étel & ital', 'Opcionális étel & ital', 'Ruházat & kiegészítő',
+    'Szépségápolás', 'Szórakozás', 'Egyéb', 'Ajándékok', 'Vinted kiadások',
+    'Taxi, helyjegy, tankolás', 'Utazás', 'Fodrász', 'Buli', 'Masszőr',
+    'Tápkieg.', 'Sport, önfejlesztés',
+  ],
+  bills: ['Telekom', 'Laptop', 'Albérlet', 'Bérlet', 'Ipad'],
+};
+
+const FLOW_GROUPS = [
+  { key: 'income', label: 'Income', color: '#4ADE80', btn: 'green' },
+  { key: 'expense', label: 'Expenses', color: '#FF8A7A', btn: 'red' },
+  { key: 'bills', label: 'Bills', color: '#F5B95F', btn: 'gold' },
+];
 
 const state = {
   tab: 'net',
   openForm: null,
-  editing: null, // { list, id, field } while an amount is being edited in place
+  editing: null, // { list, id, field } while a value is being edited in place
   loaded: false,
-  accounts: [], income: [], categories: [], subs: [], goals: [],
+  seeding: false,
+  flowMissing: false, // finance_flow table not created yet
+  accounts: [], subs: [], goals: [],
+  flow: [],           // all finance_flow rows (every month)
+  month: FIRST_MONTH, // currently selected month
 };
 
 const fmt = (n) => `${Math.round(n).toLocaleString('hu-HU')} ${CURRENCY_SUFFIX}`;
-const sum = (arr, key) => arr.reduce((a, b) => a + b[key], 0);
+const sum = (arr, key) => arr.reduce((a, b) => a + (Number(b[key]) || 0), 0);
 
 function setTab(tab) { state.tab = tab; state.openForm = null; state.editing = null; render(); }
 function toggleForm(key) { state.openForm = state.openForm === key ? null : key; state.editing = null; render(); }
+
+/* ---------- month helpers ---------- */
+
+function ymAdd(ym, n) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
+}
+function monthLabel(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1))
+    .toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+function monthShort(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1))
+    .toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+}
+function monthsWithData() { return [...new Set(state.flow.map((r) => r.month))].sort(); }
+function flowRows(month, grp) {
+  return state.flow
+    .filter((r) => r.month === month && (!grp || r.grp === grp))
+    .sort((a, b) => a.sort - b.sort || String(a.id).localeCompare(String(b.id)));
+}
 
 /* ---------- Supabase CRUD (optimistic where possible) ---------- */
 
 // numeric columns arrive as strings from PostgREST — coerce once here
 function normalize(row) {
+  return { ...row, amount: Number(row.amount ?? 0), target: Number(row.target ?? 0), saved: Number(row.saved ?? 0) };
+}
+function normalizeFlow(row) {
   return {
-    ...row,
-    amount: Number(row.amount ?? 0),
-    target: Number(row.target ?? 0),
-    saved: Number(row.saved ?? 0),
+    id: row.id, month: row.month, grp: row.grp, name: row.name,
+    planned: Number(row.planned ?? 0), actual: Number(row.actual ?? 0), sort: Number(row.sort ?? 0),
   };
 }
 
 async function load() {
-  const { data, error } = await supabase.from(TABLE).select('*')
-    .order('sort').order('created_at');
-  if (error) return showError(error);
+  // finance_items (accounts / subs / goals)
+  const items = await supabase.from(TABLE).select('*').order('sort').order('created_at');
+  if (items.error) return showError(items.error);
   for (const l of LISTS) state[l] = [];
-  for (const row of data ?? []) state[row.list]?.push(normalize(row));
+  for (const row of items.data ?? []) if (Array.isArray(state[row.list])) state[row.list].push(normalize(row));
+
+  // finance_flow (monthly budget lines) — may not exist yet
+  const flow = await supabase.from(FLOW_TABLE).select('*').order('sort').order('created_at');
+  if (flow.error) {
+    const missing = flow.error.code === '42P01' || /does not exist|schema cache/i.test(flow.error.message ?? '');
+    if (missing) { state.flowMissing = true; state.flow = []; }
+    else { showError(flow.error); }
+  } else {
+    state.flowMissing = false;
+    state.flow = (flow.data ?? []).map(normalizeFlow);
+  }
+
+  const months = monthsWithData();
+  state.month = months.includes(state.month) ? state.month : (months[months.length - 1] || FIRST_MONTH);
   state.loaded = true;
   render();
 }
 
 async function pushItem(list, obj) {
-  const { data, error } = await supabase.from(TABLE)
-    .insert({ list, ...obj }).select().single();
+  const { data, error } = await supabase.from(TABLE).insert({ list, ...obj }).select().single();
   if (error) return showError(error);
   state[list] = [...state[list], normalize(data)];
   state.openForm = null;
@@ -63,11 +132,7 @@ async function delItem(list, id) {
   state[list] = prev.filter((x) => String(x.id) !== String(id)); // optimistic
   render();
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
-  if (error) {
-    state[list] = prev; // revert on failure
-    render();
-    showError(error);
-  }
+  if (error) { state[list] = prev; render(); showError(error); }
 }
 
 async function patchItem(list, id, changes) {
@@ -80,8 +145,7 @@ async function patchItem(list, id, changes) {
   const { error } = await supabase.from(TABLE).update(changes).eq('id', id);
   if (error) {
     state[list] = state[list].map((x) => (String(x.id) === String(id) ? { ...x, ...prev } : x));
-    render();
-    showError(error);
+    render(); showError(error);
   }
 }
 
@@ -96,45 +160,138 @@ async function contribute(id, amount) {
   const { error } = await supabase.from(TABLE).update({ saved }).eq('id', id);
   if (error) {
     state.goals = state.goals.map((g) => (String(g.id) === String(id) ? { ...g, saved: prevSaved } : g));
-    render();
-    showError(error);
+    render(); showError(error);
   }
+}
+
+/* ---------- finance_flow CRUD ---------- */
+
+async function flowAdd(grp, obj) {
+  const month = state.month;
+  const peers = flowRows(month, grp);
+  const sort = peers.length ? Math.max(...peers.map((r) => r.sort)) + 1 : 1;
+  const { data, error } = await supabase.from(FLOW_TABLE)
+    .insert({ month, grp, name: obj.name, planned: obj.planned || 0, actual: obj.actual || 0, sort })
+    .select().single();
+  if (error) return showError(error);
+  state.flow = [...state.flow, normalizeFlow(data)];
+  state.openForm = null;
+  render();
+}
+
+async function flowDel(id) {
+  const prev = state.flow;
+  state.flow = prev.filter((x) => String(x.id) !== String(id)); // optimistic
+  render();
+  const { error } = await supabase.from(FLOW_TABLE).delete().eq('id', id);
+  if (error) { state.flow = prev; render(); showError(error); }
+}
+
+async function flowPatch(id, changes) {
+  const item = state.flow.find((x) => String(x.id) === String(id));
+  if (!item) return;
+  const prev = {};
+  for (const k of Object.keys(changes)) prev[k] = item[k];
+  state.flow = state.flow.map((x) => (x === item ? { ...x, ...changes } : x)); // optimistic
+  render();
+  const { error } = await supabase.from(FLOW_TABLE).update(changes).eq('id', id);
+  if (error) {
+    state.flow = state.flow.map((x) => (String(x.id) === String(id) ? { ...x, ...prev } : x));
+    render(); showError(error);
+  }
+}
+
+// Swap sort with the adjacent sibling in the same group/month.
+async function flowMove(id, dir) {
+  const item = state.flow.find((x) => String(x.id) === String(id));
+  if (!item) return;
+  const peers = flowRows(item.month, item.grp);
+  const idx = peers.findIndex((r) => String(r.id) === String(id));
+  const swap = peers[idx + dir];
+  if (!swap) return;
+  const a = item.sort, b = swap.sort;
+  state.flow = state.flow.map((x) => {
+    if (x === item) return { ...x, sort: b };
+    if (x === swap) return { ...x, sort: a };
+    return x;
+  });
+  render();
+  const r1 = await supabase.from(FLOW_TABLE).update({ sort: b }).eq('id', item.id);
+  const r2 = await supabase.from(FLOW_TABLE).update({ sort: a }).eq('id', swap.id);
+  if (r1.error || r2.error) { showError(r1.error || r2.error); load(); }
+}
+
+// Seed a month. sourceRows given → clone their names + planned (actual reset);
+// otherwise use the Excel defaults with all amounts at 0.
+async function seedMonth(month, sourceRows) {
+  const rows = [];
+  if (sourceRows && sourceRows.length) {
+    for (const r of sourceRows) rows.push({ month, grp: r.grp, name: r.name, planned: r.planned, actual: 0, sort: r.sort });
+  } else {
+    for (const g of FLOW_GROUPS) {
+      let i = 0;
+      for (const name of DEFAULT_FLOW[g.key]) rows.push({ month, grp: g.key, name, planned: 0, actual: 0, sort: ++i });
+    }
+  }
+  state.seeding = true; render();
+  const { data, error } = await supabase.from(FLOW_TABLE).insert(rows).select();
+  state.seeding = false;
+  if (error) return showError(error);
+  state.flow = [...state.flow, ...(data ?? []).map(normalizeFlow)];
+  state.month = month;
+  render();
+}
+
+function startNewMonth() {
+  const months = monthsWithData();
+  if (!months.length) return seedMonth(FIRST_MONTH, null);
+  const latest = months[months.length - 1];
+  seedMonth(ymAdd(latest, 1), flowRows(latest));
 }
 
 let statusTimer;
 function showError(error) {
   const el = $('#money-status');
-  // Missing table → the one-time setup step hasn't run yet; keep the hint on screen.
   const missing = error?.code === '42P01' || /does not exist|schema cache/i.test(error?.message ?? '');
   clearTimeout(statusTimer);
   if (missing) {
-    el.textContent = 'Missing table — run sql/finance.sql once in the Supabase SQL Editor.';
+    el.textContent = 'Missing table — run sql/finance.sql and sql/finance_flow.sql once in the Supabase SQL Editor.';
   } else {
     el.textContent = `Error: ${error.message}`;
     statusTimer = setTimeout(() => { el.textContent = ''; }, 8000);
   }
 }
 
-/* ---------- inline amount editing ---------- */
+/* ---------- inline editing (click-to-edit) ---------- */
 
-// A displayed amount: normally a click-to-edit button, but while this exact
-// cell is being edited it renders as a number input instead.
-function amountCell(list, item, field, display, extraClass = '') {
+// A value cell: normally a click-to-edit button; while this exact cell is being
+// edited it renders as an input. `type` = 'number' (default) or 'text'.
+function editCell(list, item, field, display, opts = {}) {
+  const { type = 'number', cls = '' } = opts;
   const e = state.editing;
   if (e && e.list === list && String(e.id) === String(item.id) && e.field === field) {
+    if (type === 'text') {
+      return `<input id="edit-input" class="money-edit-input money-edit-input--text" type="text" value="${escapeHtml(String(item[field] ?? ''))}" maxlength="40" />`;
+    }
     return `<input id="edit-input" class="money-edit-input mono" type="number" step="any" value="${Number(item[field]) || 0}" />`;
   }
-  return `<button type="button" class="money-amount-btn ${extraClass}" title="Click to edit" data-action="edit" data-list="${list}" data-id="${item.id}" data-field="${field}">${display}</button>`;
+  return `<button type="button" class="money-amount-btn ${cls}" title="Click to edit" data-action="edit" data-list="${list}" data-id="${item.id}" data-field="${field}">${display}</button>`;
 }
+// back-compat alias used by the untouched tabs
+const amountCell = (list, item, field, display, extraClass = '') => editCell(list, item, field, display, { cls: extraClass });
 
 function commitEdit(raw) {
   const e = state.editing;
   if (!e) return;
   state.editing = null;
   const item = state[e.list].find((x) => String(x.id) === String(e.id));
-  const value = Number(raw);
-  if (!item || !Number.isFinite(value) || value === Number(item[e.field])) return render();
-  patchItem(e.list, e.id, { [e.field]: value });
+  if (!item) return render();
+  let value, changed;
+  if (e.field === 'name') { value = String(raw).trim(); changed = !!value && value !== item.name; }
+  else { value = Number(raw); changed = Number.isFinite(value) && value !== Number(item[e.field]); }
+  if (!changed) return render();
+  if (e.list === 'flow') flowPatch(e.id, { [e.field]: value });
+  else patchItem(e.list, e.id, { [e.field]: value });
 }
 
 /* ---------- tabs ---------- */
@@ -145,17 +302,14 @@ const TAB_DEFS = [
   { key: 'subs', label: 'Subscriptions' },
   { key: 'save', label: 'Savings' },
 ];
-
 function renderTabs() {
-  return TAB_DEFS.map((t) => `<button type="button" class="money-tab${state.tab === t.key ? ' is-active' : ''}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`)
-    .join('');
+  return TAB_DEFS.map((t) => `<button type="button" class="money-tab${state.tab === t.key ? ' is-active' : ''}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join('');
 }
 
-/* ---------- net worth ---------- */
+/* ---------- net worth (unchanged) ---------- */
 
 function renderNetWorth() {
   const total = sum(state.accounts, 'amount') || 1;
-
   const rows = state.accounts.length
     ? state.accounts.map((a, i) => {
       const pct = Math.round((a.amount / total) * 100);
@@ -203,76 +357,182 @@ function renderNetWorth() {
     ${rows}`;
 }
 
-/* ---------- flow ---------- */
+/* ---------- flow (reworked: monthly, three groups, planned + actual, charts) ---------- */
 
-function renderFlow() {
-  const incomeTotal = sum(state.income, 'amount');
-  const expenseTotal = sum(state.categories, 'amount');
-  const net = incomeTotal - expenseTotal;
-  const netColor = net >= 0 ? 'var(--ok)' : '#FF8A7A';
-  const netFmt = `${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}`;
-  const catMax = Math.max(1, ...state.categories.map((c) => c.amount));
+function groupTotals(month, grp) {
+  const rows = flowRows(month, grp);
+  return { planned: sum(rows, 'planned'), actual: sum(rows, 'actual') };
+}
 
-  const categoriesHtml = state.categories.length
-    ? state.categories.map((c) => {
-      const pctLabel = expenseTotal ? Math.round((c.amount / expenseTotal) * 100) : 0;
-      const barWidth = (c.amount / catMax) * 100;
-      return `<div>
-        <div class="money-cat-head">
-          <span class="money-cat-name"><span class="money-cat-pct">${pctLabel}%</span>${escapeHtml(c.name)}</span>
-          <span class="money-cat-amount-wrap">${amountCell('categories', c, 'amount', fmt(c.amount), 'mono')}<button type="button" class="money-del-btn money-del-btn--sm" title="Delete" data-action="delete" data-list="categories" data-id="${c.id}">×</button></span>
-        </div>
-        <div class="money-bar-track money-bar-track--tall"><span class="money-bar-fill money-bar-fill--gold" style="width:${barWidth}%;"></span></div>
-      </div>`;
-    }).join('')
-    : emptyStateHTML('No expense categories added yet.');
+// Donut of actual spend by category (expenses + bills), top 7 + "Other".
+function expenseDonut(month) {
+  const rows = [...flowRows(month, 'expense'), ...flowRows(month, 'bills')]
+    .filter((r) => r.actual > 0)
+    .sort((a, b) => b.actual - a.actual);
+  const total = sum(rows, 'actual');
+  if (!total) return `<div class="money-chart-empty">No spend logged for ${monthLabel(month)} yet.</div>`;
 
-  const incomeHtml = state.income.length
-    ? state.income.map((inc) => `<div class="card money-income-row">
-        <span class="money-income-left"><span class="money-dot money-dot--sm" style="background:var(--ok);box-shadow:0 0 8px var(--ok);"></span><span>${escapeHtml(inc.name)}</span></span>
-        <span class="money-income-left">${amountCell('income', inc, 'amount', `+${fmt(inc.amount)}`, 'money-income-amount mono')}<button type="button" class="money-del-btn" title="Delete" data-action="delete" data-list="income" data-id="${inc.id}">×</button></span>
-      </div>`).join('')
-    : emptyStateHTML('No income sources added yet.');
+  let segs = rows.map((r, i) => ({ label: r.name, value: r.actual, color: PALETTE[i % PALETTE.length] }));
+  if (segs.length > 7) {
+    const rest = segs.slice(7);
+    segs = segs.slice(0, 7);
+    segs.push({ label: 'Other', value: rest.reduce((a, s) => a + s.value, 0), color: 'var(--faint)' });
+  }
 
-  const expenseForm = state.openForm === 'expense' ? `
-    <form class="card money-inline-form" data-form="add-expense">
-      <input name="cat_name" placeholder="Category" required maxlength="40" class="money-f-grow2" />
-      <input name="cat_amount" type="number" placeholder="Amount" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--red">Save</button>
-    </form>` : '';
+  const r = 58, cx = 72, cy = 72, sw = 20, C = 2 * Math.PI * r;
+  let off = 0;
+  const circles = segs.map((s) => {
+    const dash = (s.value / total) * C;
+    const c = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"></circle>`;
+    off += dash;
+    return c;
+  }).join('');
 
-  const incomeForm = state.openForm === 'income' ? `
-    <form class="card money-inline-form" data-form="add-income">
-      <input name="in_name" placeholder="Source (e.g. Salary)" required maxlength="40" class="money-f-grow2" />
-      <input name="in_amount" type="number" placeholder="Amount" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--green">Save</button>
+  const legend = segs.map((s) => `<div class="money-legend-item">
+      <span class="money-legend-dot" style="background:${s.color};"></span>
+      <span class="money-legend-name">${escapeHtml(s.label)}</span>
+      <span class="money-legend-val">${Math.round((s.value / total) * 100)}%</span>
+    </div>`).join('');
+
+  return `<div class="money-donut-wrap">
+    <svg width="144" height="144" viewBox="0 0 144 144" aria-hidden="true">
+      ${circles}
+      <text x="72" y="68" text-anchor="middle" class="money-donut-c1">${fmt(total)}</text>
+      <text x="72" y="86" text-anchor="middle" class="money-donut-c2">spent</text>
+    </svg>
+    <div class="money-legend">${legend}</div>
+  </div>`;
+}
+
+// Grouped bars of actual income vs outflow across the last 8 logged months.
+function trendChart() {
+  const months = monthsWithData().slice(-8);
+  if (!months.length) return `<div class="money-chart-empty">Log a month to see the trend.</div>`;
+  const data = months.map((m) => ({
+    m,
+    income: groupTotals(m, 'income').actual,
+    out: groupTotals(m, 'expense').actual + groupTotals(m, 'bills').actual,
+  }));
+  const max = Math.max(1, ...data.map((d) => Math.max(d.income, d.out)));
+  const H = 96, W = Math.max(220, months.length * 54), slot = W / data.length;
+  const bw = Math.min(16, slot / 3);
+  const bars = data.map((d, i) => {
+    const x = i * slot + slot / 2;
+    const ih = (d.income / max) * H, oh = (d.out / max) * H;
+    return `<rect x="${(x - bw - 1).toFixed(1)}" y="${(H - ih).toFixed(1)}" width="${bw}" height="${ih.toFixed(1)}" rx="2" fill="#4ADE80"></rect>
+      <rect x="${(x + 1).toFixed(1)}" y="${(H - oh).toFixed(1)}" width="${bw}" height="${oh.toFixed(1)}" rx="2" fill="#FF8A7A"></rect>
+      <text x="${x.toFixed(1)}" y="${H + 14}" text-anchor="middle" class="money-axis-lbl">${monthShort(d.m)}</text>`;
+  }).join('');
+  return `<div class="money-trend-legend">
+      <span><i style="background:#4ADE80"></i>Income</span><span><i style="background:#FF8A7A"></i>Out</span>
+    </div>
+    <svg width="100%" viewBox="0 0 ${W} ${H + 20}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${bars}</svg>`;
+}
+
+function flowGroupSection(month, g) {
+  const rows = flowRows(month, g.key);
+  const tot = groupTotals(month, g.key);
+  const groupActual = tot.actual || 1;
+
+  const list = rows.length ? rows.map((r, i) => {
+    const pct = g.key === 'income' ? 0 : Math.round((r.actual / groupActual) * 100);
+    const barPct = r.planned > 0 ? Math.min(100, (r.actual / r.planned) * 100) : (r.actual > 0 ? 100 : 0);
+    const over = r.planned > 0 && r.actual > r.planned;
+    return `<div class="money-flow-row">
+      <span class="money-flow-name">
+        ${g.key !== 'income' ? `<span class="money-flow-pct">${pct}%</span>` : ''}
+        ${editCell('flow', r, 'name', escapeHtml(r.name), { type: 'text' })}
+      </span>
+      <span class="money-flow-figs">
+        <span class="money-flow-plan">${editCell('flow', r, 'planned', fmt(r.planned))}</span>
+        <span class="money-flow-sep">→</span>
+        ${editCell('flow', r, 'actual', fmt(r.actual), { cls: 'money-flow-act' })}
+      </span>
+      <span class="money-flow-ctrls">
+        <button type="button" class="money-move-btn" title="Move up" data-action="move-up" data-id="${r.id}"${i === 0 ? ' disabled' : ''}>▲</button>
+        <button type="button" class="money-move-btn" title="Move down" data-action="move-down" data-id="${r.id}"${i === rows.length - 1 ? ' disabled' : ''}>▼</button>
+        <button type="button" class="money-del-btn money-del-btn--sm" title="Delete" data-action="delete" data-list="flow" data-id="${r.id}">×</button>
+      </span>
+      <span class="money-flow-bar"><span style="width:${barPct}%;background:${over ? '#FF8A7A' : g.color};"></span></span>
+    </div>`;
+  }).join('') : `<div class="money-chart-empty">No ${g.label.toLowerCase()} categories.</div>`;
+
+  const form = state.openForm === `flow-${g.key}` ? `
+    <form class="card money-inline-form" data-form="add-flow" data-grp="${g.key}">
+      <input name="f_name" placeholder="Category" required maxlength="40" class="money-f-grow2" />
+      <input name="f_planned" type="number" placeholder="Planned" class="money-f-grow1 mono" />
+      <input name="f_actual" type="number" placeholder="Actual" class="money-f-grow1 mono" />
+      <button type="submit" class="money-form-submit money-form-submit--${g.btn}">Add</button>
     </form>` : '';
 
   return `
-    <div class="money-stat-grid">
-      <div class="card money-stat-card"><p class="money-stat-label">Income</p><p class="money-stat-value" style="color:var(--ok);">${fmt(incomeTotal)}</p></div>
-      <div class="card money-stat-card"><p class="money-stat-label">Expenses</p><p class="money-stat-value" style="color:#FF8A7A;">${fmt(expenseTotal)}</p></div>
-      <div class="card money-stat-card"><p class="money-stat-label">Net / mo</p><p class="money-stat-value" style="color:${netColor};">${netFmt}</p></div>
-    </div>
     <div class="section-label">
-      <span class="rule rule-s"></span>EXPENSES BY CATEGORY<span class="rule"></span>
-      <button type="button" class="money-add-btn money-add-btn--red" data-action="toggle-form" data-key="expense">+ Expense</button>
+      <span class="rule rule-s"></span>${g.label.toUpperCase()}
+      <span class="money-group-tot">${fmt(tot.actual)} / ${fmt(tot.planned)}</span>
+      <span class="rule"></span>
+      <button type="button" class="money-add-btn money-add-btn--${g.btn}" data-action="toggle-form" data-key="flow-${g.key}">+ ${g.label}</button>
     </div>
-    ${expenseForm}
-    <section class="card money-cat-section">${categoriesHtml}</section>
-    <div class="section-label">
-      <span class="rule rule-s"></span>INCOME SOURCES<span class="rule"></span>
-      <button type="button" class="money-add-btn money-add-btn--green" data-action="toggle-form" data-key="income">+ Income</button>
-    </div>
-    ${incomeForm}
-    ${incomeHtml}`;
+    ${form}
+    <section class="card money-flow-section">${list}</section>`;
 }
 
-/* ---------- subscriptions ---------- */
+function renderFlow() {
+  if (state.flowMissing) {
+    return emptyStateHTML('Flow needs its table — run sql/finance_flow.sql once in the Supabase SQL Editor, then reload.');
+  }
+
+  const months = monthsWithData();
+  if (!months.length) {
+    return `<section class="card money-flow-intro">
+      <p class="money-flow-intro-title">Start tracking your budget</p>
+      <p class="money-flow-intro-sub">Create ${monthLabel(FIRST_MONTH)} with your predefined categories from the Excel. You can rename, add or remove any of them afterwards.</p>
+      <button type="button" class="money-form-submit money-form-submit--gold" data-action="seed-default"${state.seeding ? ' disabled' : ''}>${state.seeding ? 'Creating…' : `Create ${monthLabel(FIRST_MONTH)}`}</button>
+    </section>`;
+  }
+
+  const month = state.month;
+  const idx = months.indexOf(month);
+  const inc = groupTotals(month, 'income');
+  const exp = groupTotals(month, 'expense');
+  const bill = groupTotals(month, 'bills');
+  const outActual = exp.actual + bill.actual;
+  const outPlanned = exp.planned + bill.planned;
+  const net = inc.actual - outActual;
+  const netColor = net >= 0 ? 'var(--ok)' : '#FF8A7A';
+  const netFmt = `${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}`;
+  const planNet = inc.planned - outPlanned;
+
+  const options = months.map((m) => `<option value="${m}"${m === month ? ' selected' : ''}>${monthLabel(m)}</option>`).join('');
+
+  return `
+    <div class="money-month-bar">
+      <button type="button" class="money-month-nav" data-action="month-prev"${idx <= 0 ? ' disabled' : ''}>◀</button>
+      <select class="money-month-select" data-action="select-month">${options}</select>
+      <button type="button" class="money-month-nav" data-action="month-next"${idx >= months.length - 1 ? ' disabled' : ''}>▶</button>
+      <span class="money-month-spacer"></span>
+      <button type="button" class="money-add-btn money-add-btn--gold" data-action="new-month"${state.seeding ? ' disabled' : ''}>${state.seeding ? 'Creating…' : '+ New month'}</button>
+    </div>
+
+    <div class="money-stat-grid">
+      <div class="card money-stat-card"><p class="money-stat-label">Income</p><p class="money-stat-value" style="color:var(--ok);">${fmt(inc.actual)}</p><p class="money-stat-plan">plan ${fmt(inc.planned)}</p></div>
+      <div class="card money-stat-card"><p class="money-stat-label">Out (exp + bills)</p><p class="money-stat-value" style="color:#FF8A7A;">${fmt(outActual)}</p><p class="money-stat-plan">plan ${fmt(outPlanned)}</p></div>
+      <div class="card money-stat-card"><p class="money-stat-label">Balance</p><p class="money-stat-value" style="color:${netColor};">${netFmt}</p><p class="money-stat-plan">plan ${planNet >= 0 ? '+' : '−'}${fmt(Math.abs(planNet))}</p></div>
+    </div>
+
+    <div class="money-chart-grid">
+      <div class="card money-chart-card"><p class="money-chart-title">Where the money goes · ${monthLabel(month)}</p>${expenseDonut(month)}</div>
+      <div class="card money-chart-card"><p class="money-chart-title">Income vs out by month</p>${trendChart()}</div>
+    </div>
+
+    ${flowGroupSection(month, FLOW_GROUPS[0])}
+    ${flowGroupSection(month, FLOW_GROUPS[1])}
+    ${flowGroupSection(month, FLOW_GROUPS[2])}`;
+}
+
+/* ---------- subscriptions (unchanged) ---------- */
 
 function renderSubs() {
   const monthly = sum(state.subs, 'amount');
-
   const subsHtml = state.subs.length
     ? state.subs.map((x) => {
       const initial = (x.name.trim()[0] || '?').toUpperCase();
@@ -309,7 +569,7 @@ function renderSubs() {
     ${subsHtml}`;
 }
 
-/* ---------- savings ---------- */
+/* ---------- savings (unchanged) ---------- */
 
 function renderSave() {
   const goals = state.goals;
@@ -317,7 +577,6 @@ function renderSave() {
   const primaryPct = primary && primary.target ? Math.min(100, (primary.saved / primary.target) * 100) : 0;
   const circumference = 2 * Math.PI * 80;
   const ringOffset = circumference * (1 - primaryPct / 100);
-
   const goalOptions = goals.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
 
   const goalsHtml = goals.length
@@ -388,9 +647,7 @@ const PANELS = { net: renderNetWorth, flow: renderFlow, subs: renderSubs, save: 
 
 function render() {
   $('#money-tabs').innerHTML = renderTabs();
-  $('#money-panel').innerHTML = state.loaded
-    ? PANELS[state.tab]()
-    : emptyStateHTML('Loading…');
+  $('#money-panel').innerHTML = state.loaded ? PANELS[state.tab]() : emptyStateHTML('Loading…');
   const input = $('#edit-input');
   if (input) { input.focus(); input.select(); }
 }
@@ -403,22 +660,33 @@ $('#money-tabs').addEventListener('click', (e) => {
 $('#money-panel').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  if (btn.dataset.action === 'toggle-form') toggleForm(btn.dataset.key);
-  else if (btn.dataset.action === 'delete') delItem(btn.dataset.list, btn.dataset.id);
-  else if (btn.dataset.action === 'edit') {
-    state.editing = { list: btn.dataset.list, id: btn.dataset.id, field: btn.dataset.field };
-    render();
+  const a = btn.dataset.action;
+  if (a === 'toggle-form') toggleForm(btn.dataset.key);
+  else if (a === 'delete') { btn.dataset.list === 'flow' ? flowDel(btn.dataset.id) : delItem(btn.dataset.list, btn.dataset.id); }
+  else if (a === 'edit') { state.editing = { list: btn.dataset.list, id: btn.dataset.id, field: btn.dataset.field }; render(); }
+  else if (a === 'move-up') flowMove(btn.dataset.id, -1);
+  else if (a === 'move-down') flowMove(btn.dataset.id, 1);
+  else if (a === 'seed-default') seedMonth(FIRST_MONTH, null);
+  else if (a === 'new-month') startNewMonth();
+  else if (a === 'month-prev' || a === 'month-next') {
+    const months = monthsWithData();
+    const i = months.indexOf(state.month) + (a === 'month-next' ? 1 : -1);
+    if (months[i]) { state.month = months[i]; state.openForm = null; state.editing = null; render(); }
   }
 });
 
-// inline edit lifecycle — Enter/blur saves, Esc cancels (delegated: the input
-// is re-created on every render)
+$('#money-panel').addEventListener('change', (e) => {
+  if (e.target.matches('[data-action="select-month"]')) {
+    state.month = e.target.value; state.openForm = null; state.editing = null; render();
+  }
+});
+
+// inline edit lifecycle — Enter/blur saves, Esc cancels (input re-created each render)
 $('#money-panel').addEventListener('keydown', (e) => {
   if (e.target.id !== 'edit-input') return;
   if (e.key === 'Enter') { e.preventDefault(); commitEdit(e.target.value); }
   if (e.key === 'Escape') { state.editing = null; render(); }
 });
-
 $('#money-panel').addEventListener('focusout', (e) => {
   if (e.target.id === 'edit-input') commitEdit(e.target.value);
 });
@@ -435,11 +703,8 @@ $('#money-panel').addEventListener('submit', (e) => {
     case 'add-account':
       pushItem('accounts', { name: str('acc_name'), type: str('acc_type') || 'Account', amount: num('acc_amount') });
       break;
-    case 'add-expense':
-      pushItem('categories', { name: str('cat_name'), amount: num('cat_amount') });
-      break;
-    case 'add-income':
-      pushItem('income', { name: str('in_name'), amount: num('in_amount') });
+    case 'add-flow':
+      flowAdd(form.dataset.grp, { name: str('f_name'), planned: num('f_planned'), actual: num('f_actual') });
       break;
     case 'add-sub':
       pushItem('subs', { name: str('sub_name'), amount: num('sub_amount'), day: Math.min(31, Math.max(1, num('sub_day') || 1)) });
