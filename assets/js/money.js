@@ -56,6 +56,16 @@ const state = {
 const fmt = (n) => `${Math.round(n).toLocaleString('hu-HU')} ${CURRENCY_SUFFIX}`;
 const sum = (arr, key) => arr.reduce((a, b) => a + (Number(b[key]) || 0), 0);
 
+// Evaluate an amount entry, supporting + and − chains, e.g. "12000+3000-500".
+// Amount fields pre-fill with the current value, so appending "+500" adds to it
+// and "-500" subtracts. Returns NaN for anything that isn't a plain +/− sum.
+function evalAmount(raw) {
+  const s = String(raw).replace(/[\s ]/g, '').replace(/−/g, '-'); // strip spaces, normalize minus sign
+  if (!/^[-+]?\d*\.?\d+([-+]\d*\.?\d+)*$/.test(s)) return NaN;
+  const terms = s.match(/[+-]?\d*\.?\d+/g);
+  return terms ? terms.reduce((a, t) => a + Number(t), 0) : NaN;
+}
+
 function setTab(tab) { state.tab = tab; state.openForm = null; state.editing = null; render(); }
 function toggleForm(key) { state.openForm = state.openForm === key ? null : key; state.editing = null; render(); }
 
@@ -273,7 +283,7 @@ function editCell(list, item, field, display, opts = {}) {
     if (type === 'text') {
       return `<input id="edit-input" class="money-edit-input money-edit-input--text" type="text" value="${escapeHtml(String(item[field] ?? ''))}" maxlength="40" />`;
     }
-    return `<input id="edit-input" class="money-edit-input mono" type="number" step="any" value="${Number(item[field]) || 0}" />`;
+    return `<input id="edit-input" class="money-edit-input mono" type="text" inputmode="text" autocomplete="off" title="Type + or − to add/subtract, e.g. 12000+3000" value="${Number(item[field]) || 0}" />`;
   }
   return `<button type="button" class="money-amount-btn ${cls}" title="Click to edit" data-action="edit" data-list="${list}" data-id="${item.id}" data-field="${field}">${display}</button>`;
 }
@@ -288,7 +298,7 @@ function commitEdit(raw) {
   if (!item) return render();
   let value, changed;
   if (e.field === 'name') { value = String(raw).trim(); changed = !!value && value !== item.name; }
-  else { value = Number(raw); changed = Number.isFinite(value) && value !== Number(item[e.field]); }
+  else { value = evalAmount(raw); changed = Number.isFinite(value) && value !== Number(item[e.field]); }
   if (!changed) return render();
   if (e.list === 'flow') flowPatch(e.id, { [e.field]: value });
   else patchItem(e.list, e.id, { [e.field]: value });
