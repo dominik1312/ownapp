@@ -585,3 +585,153 @@ a { color: inherit; text-decoration: none; }
 .money-flow-bar span { display: block; height: 100%; border-radius: 99px; transition: width .4s ease; }
 .money-group-tot { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .money-edit-input--text { width: 160px; }
+
+/* ---------- habits module ---------- */
+/* Habits tint is #6BE3A4 (green). Design adopted from the "Habits — Daily
+   Tracker" standalone export; its palette tokens are scoped here (not :root)
+   so they don't override the app-wide tokens on other pages. Persisted to the
+   Supabase habits / habit_logs tables — see assets/js/habits.js. */
+
+.habits-main {
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --bg-secondary: rgba(255, 255, 255, 0.035);
+  --bg-input: rgba(0, 0, 0, 0.28);
+  --bg-input-focus: rgba(0, 0, 0, 0.36);
+  --border-soft: rgba(255, 255, 255, 0.04);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --text-quaternary: #4D4B47;
+  --habit-mono: 'JetBrains Mono', monospace;
+  max-width: 640px;
+}
+
+.habit-card {
+  background: var(--bg-card);
+  padding: 22px 22px 18px;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.habit-header { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 18px; }
+.habit-date { font-family: var(--habit-mono); font-size: 11px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+
+/* hero ring */
+.habit-ring-wrap { position: relative; width: 220px; max-width: 72%; margin: 0 auto 26px; aspect-ratio: 1; }
+.habit-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+.habit-ring-track { fill: none; stroke: rgba(255, 255, 255, 0.06); stroke-width: 12; }
+.habit-ring-fill {
+  fill: none; stroke: #FFFFFF; stroke-width: 12; stroke-linecap: round;
+  stroke-dasharray: 603.19; stroke-dashoffset: 603.19;
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.4s;
+}
+.habit-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.habit-ring-num { font-size: 54px; font-weight: 700; letter-spacing: -0.04em; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+.habit-ring-num-total { font-size: 22px; font-weight: 600; color: var(--text-tertiary); letter-spacing: -0.02em; }
+.habit-ring-unit { font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-tertiary); margin-top: 8px; }
+.habit-ring-label { font-size: 12px; font-weight: 600; margin-top: 5px; letter-spacing: -0.005em; }
+
+/* stats grid */
+.habit-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 20px; border-top: 1px solid var(--border-soft); margin-bottom: 22px; }
+.habit-stat { background: var(--bg-secondary); border: 1px solid var(--border-soft); border-radius: 12px; padding: 12px 8px; text-align: center; }
+.habit-stat-label { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; margin-bottom: 6px; }
+.habit-stat-value { font-size: 21px; font-weight: 700; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.habit-stat-sub { font-size: 10px; color: var(--text-tertiary); margin-top: 5px; font-family: var(--habit-mono); }
+
+/* habit list */
+.habit-list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.habit-list-eyebrow { font-family: var(--habit-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-tertiary); }
+.habit-edit-btn {
+  font-family: var(--habit-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-tertiary); background: transparent; border: 1px solid var(--border-strong);
+  padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+}
+.habit-edit-btn:hover { color: var(--text-secondary); border-color: rgba(255, 255, 255, 0.2); }
+
+.habit-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 12px; background: var(--bg-secondary); margin-bottom: 6px; border: 1px solid transparent; transition: background 0.2s; }
+.habit-item:hover { background: rgba(255, 255, 255, 0.05); }
+.habit-item.done { background: rgba(107, 227, 164, 0.07); }
+.habit-item.done .habit-item-name { text-decoration: line-through; color: var(--text-tertiary); }
+
+.habit-check {
+  width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border-strong);
+  background: var(--bg-card); cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: transparent; transition: all 0.2s; font-family: inherit; padding: 0;
+}
+.habit-check:hover { border-color: #6BE3A4; }
+.habit-check.checked { background: #6BE3A4; border-color: #6BE3A4; color: #0A0A0B; box-shadow: 0 0 14px rgba(107, 227, 164, 0.45); }
+
+.habit-item-emoji { font-size: 18px; flex-shrink: 0; line-height: 1; }
+.habit-item-body { flex: 1; min-width: 0; }
+.habit-item-name { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 1.2; outline: none; }
+.habit-item-name[contenteditable="true"] { outline: 1px solid rgba(255, 255, 255, 0.25); outline-offset: 4px; border-radius: 4px; }
+
+.habit-streak { display: inline-flex; align-items: center; gap: 4px; font-family: var(--habit-mono); font-size: 11px; font-weight: 700; color: var(--text-tertiary); flex-shrink: 0; }
+.habit-streak.hot { color: #F2C063; }
+
+.habit-del-btn {
+  background: transparent; border: 1px solid var(--border-strong); color: var(--text-tertiary); cursor: pointer; font-size: 16px;
+  padding: 4px 10px; border-radius: 6px; opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
+  font-family: inherit; line-height: 1; min-width: 28px; min-height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.habit-del-btn:hover { color: #FF6B6B; border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.08); opacity: 1; }
+
+.habit-list-empty { font-size: 12px; color: var(--text-quaternary); font-style: italic; padding: 8px 12px; }
+
+/* 7-day history strip */
+.habit-history { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-soft); }
+.habit-history-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.habit-history-eyebrow { font-family: var(--habit-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-tertiary); }
+.habit-history-legend { font-family: var(--habit-mono); font-size: 10px; color: var(--text-quaternary); }
+.habit-history-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.habit-history-day { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.habit-history-bar-wrap { width: 100%; height: 40px; background: rgba(255, 255, 255, 0.04); border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden; }
+.habit-history-bar { width: 100%; background: rgba(255, 255, 255, 0.18); border-radius: 4px; transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s; }
+.habit-history-bar.full { background: #6BE3A4; }
+.habit-history-bar.good { background: rgba(107, 227, 164, 0.45); }
+.habit-history-day-label { font-family: var(--habit-mono); font-size: 9px; color: var(--text-quaternary); text-align: center; }
+.habit-history-day.today .habit-history-day-label { color: var(--text-secondary); font-weight: 700; }
+
+/* today's call verdict */
+.habit-verdict { margin-top: 18px; padding: 16px 18px; background: var(--bg-secondary); border: 1px solid var(--border-soft); border-left: 2px solid rgba(255, 255, 255, 0.4); border-radius: 0 12px 12px 0; }
+.habit-verdict-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.habit-verdict-eyebrow { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.18em; font-weight: 700; }
+.habit-verdict-badge { font-size: 9.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid; }
+.habit-verdict-text { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; letter-spacing: -0.005em; }
+
+/* add form */
+.habit-add-wrap { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+.habit-add-eyebrow { font-family: var(--habit-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 10px; }
+.habit-add-row { display: grid; grid-template-columns: 50px 1fr 100px; gap: 6px; }
+.habit-emoji-input, .habit-name-input {
+  font-size: 13px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border-strong);
+  background: var(--bg-input); color: var(--text-primary); font-family: inherit;
+  transition: border-color 0.18s, background 0.18s;
+}
+.habit-emoji-input { font-size: 20px; text-align: center; padding: 9px 4px; }
+.habit-name-input::placeholder { color: var(--text-tertiary); }
+.habit-emoji-input:focus, .habit-name-input:focus { outline: none; border-color: rgba(255, 255, 255, 0.4); background: var(--bg-input-focus); }
+.habit-add-btn {
+  font-size: 13px; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.85);
+  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%); color: #0A0A0B; font-weight: 700; letter-spacing: 0.005em;
+  cursor: pointer; font-family: inherit; transition: transform 0.12s, box-shadow 0.18s, background 0.18s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 4px 14px rgba(0, 0, 0, 0.30);
+}
+.habit-add-btn:hover { background: linear-gradient(180deg, #FFFFFF 0%, #F2F0EA 100%); transform: translateY(-1px); }
+.habit-add-btn:active { transform: translateY(0) scale(0.97); }
+
+@media (max-width: 600px) {
+  .habit-card { padding: 18px 16px 14px; }
+  .habit-stats { grid-template-columns: repeat(2, 1fr); }
+  .habit-stat-value { font-size: 18px; }
+  .habit-add-row { grid-template-columns: 44px 1fr; }
+  .habit-add-row .habit-add-btn { grid-column: 1 / -1; }
+}
