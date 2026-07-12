@@ -516,3 +516,72 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid #F5B95F; border-radius: 8px;
   padding: 4px 8px; outline: none;
 }
+
+/* ============================================================
+   Money · Flow rework — monthly tracking, groups, charts
+   ============================================================ */
+.money-month-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+.money-month-select {
+  font: inherit; background: #0D0D11; color: var(--text);
+  border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 12px; min-width: 160px; cursor: pointer;
+}
+.money-month-select:focus { outline: none; border-color: #F5B95F; }
+.money-month-nav {
+  font: inherit; cursor: pointer; background: rgba(255,255,255,.04); color: var(--text);
+  border: 1px solid var(--line-2); border-radius: 10px; width: 34px; height: 34px; line-height: 1;
+}
+.money-month-nav:hover:not(:disabled) { background: rgba(255,255,255,.09); }
+.money-month-nav:disabled { opacity: .3; cursor: default; }
+.money-month-spacer { flex: 1; }
+
+.money-stat-plan { margin: 4px 0 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--faint); }
+
+.money-flow-intro { padding: 30px 26px; text-align: center; }
+.money-flow-intro-title { font-family: 'Sora', 'Archivo', sans-serif; font-weight: 800; font-size: 22px; margin: 0 0 8px; }
+.money-flow-intro-sub { color: var(--muted); font-size: 13.5px; max-width: 460px; margin: 0 auto 18px; line-height: 1.5; }
+
+.money-chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 680px) { .money-chart-grid { grid-template-columns: 1fr; } }
+.money-chart-card { padding: 18px; border-radius: 16px; }
+.money-chart-title { margin: 0 0 14px; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.money-chart-empty { color: var(--faint); font-size: 13px; padding: 22px 0; text-align: center; }
+
+.money-donut-wrap { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.money-donut-c1 { fill: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; }
+.money-donut-c2 { fill: var(--faint); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+.money-legend { display: grid; gap: 7px; flex: 1; min-width: 150px; }
+.money-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.money-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.money-legend-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.money-legend-val { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--faint); flex: none; }
+
+.money-trend-legend { display: flex; gap: 16px; margin-bottom: 8px; }
+.money-trend-legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.money-trend-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.money-axis-lbl { fill: var(--faint); font-size: 10px; }
+
+.money-flow-section { padding: 12px 14px; border-radius: 16px; }
+.money-flow-row {
+  display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center;
+  gap: 8px 12px; padding: 9px 6px; border-radius: 10px;
+}
+.money-flow-row:hover { background: rgba(255,255,255,.03); }
+.money-flow-row + .money-flow-row { border-top: 1px solid var(--line); }
+.money-flow-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; }
+.money-flow-name .money-amount-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.money-flow-pct { color: var(--faint); font-family: 'JetBrains Mono', monospace; font-size: 11px; flex: none; width: 30px; text-align: right; }
+.money-flow-figs { display: flex; align-items: center; gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; white-space: nowrap; }
+.money-flow-plan .money-amount-btn { color: var(--muted); }
+.money-flow-sep { color: var(--faint); }
+.money-flow-act { color: var(--text); font-weight: 500; }
+.money-flow-ctrls { display: flex; align-items: center; gap: 1px; }
+.money-move-btn {
+  font: inherit; cursor: pointer; background: none; border: none; color: var(--faint);
+  font-size: 11px; padding: 3px 4px; border-radius: 6px; line-height: 1;
+}
+.money-move-btn:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,.07); }
+.money-move-btn:disabled { opacity: .25; cursor: default; }
+.money-flow-bar { grid-column: 1 / -1; height: 4px; border-radius: 99px; background: rgba(255,255,255,.06); overflow: hidden; margin-top: 1px; }
+.money-flow-bar span { display: block; height: 100%; border-radius: 99px; transition: width .4s ease; }
+.money-group-tot { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.money-edit-input--text { width: 160px; }
