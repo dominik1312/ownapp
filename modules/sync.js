@@ -16,8 +16,8 @@
 
   // Same project + publishable (anon) key the gym section hardcodes. Anon keys
   // are meant to live in the browser; data is protected by row-level security.
-  var SUPABASE_URL = 'https://gcqaaunceyzjciwbwphj.supabase.co';
-  var SUPABASE_KEY = 'sb_publishable_d1PEu6Pu4_ruTXgF7kU6mA_kR5SKEO4';
+  var SUPABASE_URL = 'https://ievuxqksyhemdkzyzlkg.supabase.co';
+  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlldnV4cWtzeWhlbWRrenl6bGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NDE2MDQsImV4cCI6MjA5OTAxNzYwNH0.-Ufs6JnP6EuM4pUfOUqogI94yQRvo4jbTiH2mzUHQ-w';
 
   function initCloudSync(opts) {
     opts = opts || {};
