@@ -13,11 +13,16 @@ create table if not exists public.finance_items (
   day integer check (day between 1 and 31),   -- subs: renewal day of month
   target numeric,                             -- goals
   saved numeric,                              -- goals
+  goal_date date,                             -- goals: optional target date
+  is_primary boolean not null default false,  -- goals: featured goal in Savings
+  deposits jsonb not null default '[]'::jsonb,-- goals: append-only contribution history
   sort integer not null default 0,
   created_at timestamptz not null default now()
 );
 
 create index if not exists finance_items_list_idx on public.finance_items (list);
+create unique index if not exists finance_items_one_primary_goal_idx
+  on public.finance_items (is_primary) where list = 'goals' and is_primary = true;
 
 -- The browser talks to Supabase with the ANON key; give it read/write access
 -- (RLS is on by default when tables are created from the dashboard).
