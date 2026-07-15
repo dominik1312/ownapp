@@ -854,3 +854,90 @@ body.has-bottom-nav .wrap { padding-bottom: 24px; }
   .habit-add-row { grid-template-columns: 44px 1fr; }
   .habit-add-row .habit-add-btn { grid-column: 1 / -1; }
 }
+
+/* ---------- mind module ---------- */
+/* Mind tint is #A78BFA (violet) — matches its MODULE_REGISTRY tint '167,139,250'
+   and the shared ringSVG gradient. Daily mood/energy/focus check-in persisted to
+   the Supabase mind_logs table — see assets/js/mind.js. Scoped .mind-* prefix,
+   same convention as .habit-* / .money-*. */
+
+.mind-main { max-width: 960px; margin-inline: auto; }
+.mind-card { padding: 24px 26px 22px; }
+
+.mind-header { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.mind-date { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+/* two-column on wider screens; stacks on mobile */
+.mind-grid { display: grid; gap: 26px; }
+.mind-col { min-width: 0; }
+@media (min-width: 760px) {
+  .mind-grid { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 36px; align-items: start; }
+  .mind-col--overview { position: sticky; top: 20px; }
+}
+
+/* hero ring (reuses the shared .ring / .ring-arc violet gradient from above) */
+.mind-ring-wrap { position: relative; width: 220px; max-width: 78%; aspect-ratio: 1; margin: 0 auto 24px; }
+.mind-ring-wrap .ring { width: 100%; height: 100%; }
+.mind-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.mind-ring-score { font-family: 'Sora', 'Archivo', sans-serif; font-weight: 800; font-size: 52px; letter-spacing: -0.04em; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.mind-ring-unit { font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--faint); margin-top: 8px; }
+.mind-ring-label { font-size: 12px; font-weight: 600; margin-top: 6px; color: #C4B5FD; letter-spacing: -0.005em; }
+
+/* stats grid */
+.mind-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding-top: 20px; border-top: 1px solid var(--line); margin-bottom: 20px; }
+.mind-stat { background: rgba(255, 255, 255, .025); border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; text-align: center; }
+.mind-stat-label { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; margin-bottom: 6px; }
+.mind-stat-value { font-size: 21px; font-weight: 700; color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.mind-stat-sub { font-size: 10px; color: var(--faint); margin-top: 5px; font-family: 'JetBrains Mono', monospace; }
+
+/* today's read verdict */
+.mind-verdict { padding: 16px 18px; background: rgba(167, 139, 250, .06); border: 1px solid var(--line); border-left: 2px solid rgba(167, 139, 250, .5); border-radius: 0 12px 12px 0; }
+.mind-verdict-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.mind-verdict-eyebrow { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.18em; font-weight: 700; }
+.mind-verdict-badge { font-size: 9.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.14em; text-transform: uppercase; color: #C4B5FD; background: rgba(167, 139, 250, .12); border: 1px solid rgba(167, 139, 250, .3); }
+.mind-verdict-text { font-size: 13.5px; color: var(--muted); line-height: 1.6; letter-spacing: -0.005em; }
+
+/* check-in */
+.mind-checkin-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.mind-checkin-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.mind-checkin-hint { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--faint); }
+
+.mind-dims { display: grid; gap: 16px; }
+.mind-dim { background: rgba(255, 255, 255, .025); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.mind-dim-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.mind-dim-emoji { font-size: 17px; line-height: 1; }
+.mind-dim-label { font-family: 'Archivo', 'Inter', sans-serif; font-variation-settings: 'wdth' 115; font-weight: 700; font-size: 14.5px; }
+.mind-dim-value { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--muted); text-transform: lowercase; }
+
+.mind-segs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.mind-seg {
+  font: inherit; cursor: pointer; height: 38px;
+  border: 1px solid var(--line-2); border-radius: 10px;
+  background: rgba(255, 255, 255, .02); color: var(--faint);
+  font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600;
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+}
+.mind-seg:hover { border-color: rgba(167, 139, 250, .5); color: var(--text); }
+.mind-seg.is-on {
+  background: rgba(167, 139, 250, .16); border-color: rgba(167, 139, 250, .55);
+  color: #EDE9FE; box-shadow: inset 0 0 12px rgba(167, 139, 250, .18);
+}
+
+/* 7-day history strip */
+.mind-history { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.mind-history-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.mind-history-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+.mind-history-legend { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--faint); }
+.mind-history-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.mind-history-day { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mind-history-bar-wrap { width: 100%; height: 44px; background: rgba(255, 255, 255, .04); border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden; }
+.mind-history-bar { width: 100%; border-radius: 4px; background: rgba(167, 139, 250, .5); transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s; }
+.mind-history-bar.high { background: linear-gradient(180deg, #C4B5FD, #8B5CF6); }
+.mind-history-bar.empty { background: rgba(255, 255, 255, .08); }
+.mind-history-day-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--faint); text-align: center; }
+.mind-history-day.today .mind-history-day-label { color: var(--text); font-weight: 700; }
+
+@media (max-width: 600px) {
+  .mind-card { padding: 18px 16px 14px; }
+  .mind-ring-score { font-size: 44px; }
+}

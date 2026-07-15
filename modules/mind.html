@@ -17,11 +17,87 @@
       <h1>🧠 Mind</h1>
       <p class="page-sub">Mood, energy, focus</p>
     </header>
-    <main class="stack">
-      <section class="card">
-        <div class="empty-card"><span class="empty-emoji">◌</span><p>Mind — coming in a later phase</p></div>
+
+    <main class="stack mind-main">
+      <section class="card mind-card">
+
+        <div class="mind-header">
+          <span class="mind-date" id="mindDate"></span>
+        </div>
+
+        <div class="mind-grid">
+
+          <!-- Left column: hero ring + stats + verdict -->
+          <div class="mind-col mind-col--overview">
+
+            <div class="mind-ring-wrap" id="mindRingWrap">
+              <!-- ring SVG injected here by mind.js -->
+              <div class="mind-ring-center">
+                <div class="mind-ring-score" id="mindScore">—</div>
+                <div class="mind-ring-unit">of 5 today</div>
+                <div class="mind-ring-label" id="mindRingLabel">—</div>
+              </div>
+            </div>
+
+            <div class="mind-stats">
+              <div class="mind-stat">
+                <div class="mind-stat-label">Mood</div>
+                <div class="mind-stat-value" id="statMood">—</div>
+                <div class="mind-stat-sub">7-day avg</div>
+              </div>
+              <div class="mind-stat">
+                <div class="mind-stat-label">Energy</div>
+                <div class="mind-stat-value" id="statEnergy">—</div>
+                <div class="mind-stat-sub">7-day avg</div>
+              </div>
+              <div class="mind-stat">
+                <div class="mind-stat-label">Focus</div>
+                <div class="mind-stat-value" id="statFocus">—</div>
+                <div class="mind-stat-sub">7-day avg</div>
+              </div>
+              <div class="mind-stat">
+                <div class="mind-stat-label">Streak</div>
+                <div class="mind-stat-value" id="statStreak">—</div>
+                <div class="mind-stat-sub">days logged</div>
+              </div>
+            </div>
+
+            <div class="mind-verdict">
+              <div class="mind-verdict-head">
+                <span class="mind-verdict-eyebrow">Today's read</span>
+                <span class="mind-verdict-badge" id="mindVerdictBadge"></span>
+              </div>
+              <div class="mind-verdict-text" id="mindVerdictText"></div>
+            </div>
+
+          </div>
+
+          <!-- Right column: today's check-in + history -->
+          <div class="mind-col mind-col--detail">
+
+            <div class="mind-checkin-head">
+              <span class="mind-checkin-eyebrow">How are you today?</span>
+              <span class="mind-checkin-hint">tap 1–5</span>
+            </div>
+            <div class="mind-dims" id="mindDims"></div>
+
+            <div class="mind-history">
+              <div class="mind-history-head">
+                <span class="mind-history-eyebrow">Last 7 days</span>
+                <span class="mind-history-legend" id="mindHistoryLegend"></span>
+              </div>
+              <div class="mind-history-strip" id="mindHistoryStrip"></div>
+            </div>
+
+          </div>
+
+        </div>
+
       </section>
+      <p class="status" id="mind-status" role="status"></p>
     </main>
   </div>
+
+  <script type="module" src="../assets/js/mind.js"></script>
 </body>
 </html>
