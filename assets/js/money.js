@@ -45,11 +45,13 @@ const state = {
   tab: 'net',
   openForm: null,
   openEntries: null,  // flow row id whose itemized box is expanded, or null
+  openGoalHistory: null,
   editing: null, // { list, id, field } while a value is being edited in place
   loaded: false,
   seeding: false,
   flowMissing: false, // finance_flow table not created yet
   flowHasEntries: true, // finance_flow.entries column present (see finance_flow_entries.sql)
+  savingsV2: false, // optional goal_date / is_primary / deposits columns are present
   accounts: [], subs: [], goals: [],
   flow: [],           // all finance_flow rows (every month)
   month: FIRST_MONTH, // currently selected month
@@ -64,6 +66,19 @@ function entryDate(iso) {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' });
 }
 
+function goalDateLabel(date) {
+  if (!date) return 'Add target date';
+  const d = new Date(`${date}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? 'Add target date' : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function monthsToGoal(date) {
+  if (!date) return null;
+  const end = new Date(`${date}T23:59:59`);
+  if (Number.isNaN(end.getTime())) return null;
+  return Math.max(1, Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 30.44)));
+}
+
 // Evaluate an amount entry, supporting + and − chains, e.g. "12000+3000-500".
 // Amount fields pre-fill with the current value, so appending "+500" adds to it
 // and "-500" subtracts. Returns NaN for anything that isn't a plain +/− sum.
@@ -74,7 +89,7 @@ function evalAmount(raw) {
   return terms ? terms.reduce((a, t) => a + Number(t), 0) : NaN;
 }
 
-function setTab(tab) { state.tab = tab; state.openForm = null; state.editing = null; state.openEntries = null; render(); }
+function setTab(tab) { state.tab = tab; state.openForm = null; state.editing = null; state.openEntries = null; state.openGoalHistory = null; render(); }
 function toggleForm(key) { state.openForm = state.openForm === key ? null : key; state.editing = null; render(); }
 
 /* ---------- month helpers ---------- */
@@ -104,7 +119,13 @@ function flowRows(month, grp) {
 
 // numeric columns arrive as strings from PostgREST — coerce once here
 function normalize(row) {
-  return { ...row, amount: Number(row.amount ?? 0), target: Number(row.target ?? 0), saved: Number(row.saved ?? 0) };
+  return {
+    ...row,
+    amount: Number(row.amount ?? 0), target: Number(row.target ?? 0), saved: Number(row.saved ?? 0),
+    goal_date: row.goal_date || null,
+    is_primary: Boolean(row.is_primary),
+    deposits: Array.isArray(row.deposits) ? row.deposits : [],
+  };
 }
 function normalizeFlow(row) {
   return {
@@ -120,6 +141,10 @@ async function load() {
   if (items.error) return showError(items.error);
   for (const l of LISTS) state[l] = [];
   for (const row of items.data ?? []) if (Array.isArray(state[row.list])) state[row.list].push(normalize(row));
+
+  // Detect the additive Savings upgrade without making older installations fail.
+  const savingsSchema = await supabase.from(TABLE).select('goal_date,is_primary,deposits').limit(1);
+  state.savingsV2 = !savingsSchema.error;
 
   // finance_flow (monthly budget lines) — may not exist yet
   const flow = await supabase.from(FLOW_TABLE).select('*').order('sort').order('created_at');
@@ -145,9 +170,11 @@ async function load() {
 async function pushItem(list, obj) {
   const { data, error } = await supabase.from(TABLE).insert({ list, ...obj }).select().single();
   if (error) return showError(error);
-  state[list] = [...state[list], normalize(data)];
+  const item = normalize(data);
+  state[list] = [...state[list], item];
   state.openForm = null;
   render();
+  return item;
 }
 
 async function delItem(list, id) {
@@ -172,18 +199,56 @@ async function patchItem(list, id, changes) {
   }
 }
 
-async function contribute(id, amount) {
+async function contribute(id, amount, meta = {}) {
   const goal = state.goals.find((g) => String(g.id) === String(id));
   if (!goal || !(amount > 0)) return;
   const prevSaved = goal.saved;
+  const prevDeposits = Array.isArray(goal.deposits) ? goal.deposits : [];
   const saved = prevSaved + amount;
-  state.goals = state.goals.map((g) => (g === goal ? { ...g, saved } : g)); // optimistic
+  const baseline = state.savingsV2 && !prevDeposits.length && prevSaved > 0
+    ? [{ amt: prevSaved, at: null, source: 'baseline' }]
+    : [];
+  const deposits = state.savingsV2
+    ? [...baseline, ...prevDeposits, { amt: amount, at: new Date().toISOString(), source: meta.source || 'manual', ...(meta.month ? { month: meta.month } : {}) }]
+    : prevDeposits;
+  const changes = state.savingsV2 ? { saved, deposits } : { saved };
+  state.goals = state.goals.map((g) => (g === goal ? { ...g, ...changes } : g)); // optimistic
   state.openForm = null;
   render();
-  const { error } = await supabase.from(TABLE).update({ saved }).eq('id', id);
+  const { error } = await supabase.from(TABLE).update(changes).eq('id', id);
   if (error) {
-    state.goals = state.goals.map((g) => (String(g.id) === String(id) ? { ...g, saved: prevSaved } : g));
+    state.goals = state.goals.map((g) => (String(g.id) === String(id) ? { ...g, saved: prevSaved, deposits: prevDeposits } : g));
     render(); showError(error);
+  }
+}
+
+function flowSavingsForMonth(month) {
+  return state.goals.reduce((total, goal) => total + (goal.deposits || [])
+    .filter((entry) => entry.source === 'flow' && entry.month === month)
+    .reduce((sumValue, entry) => sumValue + (Number(entry.amt) || 0), 0), 0);
+}
+
+function monthBalance(month) {
+  return groupTotals(month, 'income').actual - groupTotals(month, 'expense').actual - groupTotals(month, 'bills').actual;
+}
+
+async function contributeFromFlow(goalId, amount, month) {
+  const available = Math.max(0, monthBalance(month) - flowSavingsForMonth(month));
+  if (!(amount > 0) || amount > available) return showError({ message: `Choose an amount up to ${fmt(available)}.` });
+  await contribute(goalId, amount, { source: 'flow', month });
+}
+
+async function setPrimaryGoal(id) {
+  if (!state.savingsV2) return;
+  const prev = state.goals;
+  state.goals = state.goals.map((goal) => ({ ...goal, is_primary: String(goal.id) === String(id) }));
+  render();
+  const cleared = await supabase.from(TABLE).update({ is_primary: false }).eq('list', 'goals').eq('is_primary', true);
+  const selected = cleared.error ? null : await supabase.from(TABLE).update({ is_primary: true }).eq('id', id);
+  if (cleared.error || selected?.error) {
+    state.goals = prev;
+    render();
+    showError(cleared.error || selected.error);
   }
 }
 
@@ -298,6 +363,9 @@ function editCell(list, item, field, display, opts = {}) {
     if (type === 'text') {
       return `<input id="edit-input" class="money-edit-input money-edit-input--text" type="text" value="${escapeHtml(String(item[field] ?? ''))}" maxlength="40" />`;
     }
+    if (type === 'date') {
+      return `<input id="edit-input" class="money-edit-input money-edit-input--date" type="date" value="${escapeHtml(String(item[field] ?? ''))}" />`;
+    }
     return `<input id="edit-input" class="money-edit-input mono" type="text" inputmode="text" autocomplete="off" title="Type + or − to add/subtract, e.g. 12000+3000" value="${Number(item[field]) || 0}" />`;
   }
   return `<button type="button" class="money-amount-btn ${cls}" title="Click to edit" data-action="edit" data-list="${list}" data-id="${item.id}" data-field="${field}">${display}</button>`;
@@ -313,6 +381,7 @@ function commitEdit(raw) {
   if (!item) return render();
   let value, changed;
   if (e.field === 'name') { value = String(raw).trim(); changed = !!value && value !== item.name; }
+  else if (e.field === 'goal_date') { value = String(raw).trim() || null; changed = value !== item.goal_date; }
   else { value = evalAmount(raw); changed = Number.isFinite(value) && value !== Number(item[e.field]); }
   if (!changed) return render();
   if (e.list === 'flow') {
@@ -330,6 +399,16 @@ function commitEdit(raw) {
       }
     }
     flowPatch(e.id, changes);
+  } else if (e.list === 'goals' && e.field === 'saved' && state.savingsV2) {
+    const delta = value - Number(item.saved || 0);
+    const prevDeposits = Array.isArray(item.deposits) ? item.deposits : [];
+    const baseline = !prevDeposits.length && Number(item.saved) > 0
+      ? [{ amt: Number(item.saved), at: null, source: 'baseline' }]
+      : [];
+    patchItem('goals', e.id, {
+      saved: value,
+      deposits: [...baseline, ...prevDeposits, { amt: delta, at: new Date().toISOString(), source: 'adjustment' }],
+    });
   } else patchItem(e.list, e.id, { [e.field]: value });
 }
 
@@ -557,6 +636,19 @@ function renderFlow() {
   const netColor = net >= 0 ? 'var(--ok)' : '#FF8A7A';
   const netFmt = `${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))}`;
   const planNet = inc.planned - outPlanned;
+  const savedFromFlow = state.savingsV2 ? flowSavingsForMonth(month) : 0;
+  const availableToSave = Math.max(0, net - savedFromFlow);
+  const flowGoalOptions = state.goals.map((goal) => `<option value="${goal.id}">${escapeHtml(goal.name)}</option>`).join('');
+  const flowSaveButton = state.goals.length
+    ? `<button type="button" class="money-flow-save-btn" data-action="toggle-form" data-key="flow-save"${availableToSave <= 0 || !state.savingsV2 ? ' disabled' : ''}>+ Add to savings</button>`
+    : `<button type="button" class="money-flow-save-btn" data-action="start-saving">+ Add to savings</button>`;
+  const flowSaveForm = state.openForm === 'flow-save' ? `
+    <form class="card money-inline-form money-flow-save-form" data-form="save-from-flow" data-month="${month}">
+      <span class="money-flow-save-copy"><strong>Move ${monthLabel(month)} balance to a goal</strong><small>${fmt(availableToSave)} available${savedFromFlow ? ` · ${fmt(savedFromFlow)} already added` : ''}</small></span>
+      <select name="fs_goal" class="money-f-grow2" required>${flowGoalOptions}</select>
+      <input name="fs_amount" type="number" min="1" max="${Math.floor(availableToSave)}" value="${Math.floor(availableToSave)}" placeholder="Amount" required class="money-f-grow1 mono" />
+      <button type="submit" class="money-form-submit money-form-submit--gold">Add</button>
+    </form>` : '';
 
   const options = months.map((m) => `<option value="${m}"${m === month ? ' selected' : ''}>${monthLabel(m)}</option>`).join('');
 
@@ -572,8 +664,9 @@ function renderFlow() {
     <div class="money-stat-grid">
       <div class="card money-stat-card"><p class="money-stat-label">Income</p><p class="money-stat-value" style="color:var(--ok);">${fmt(inc.actual)}</p><p class="money-stat-plan">plan ${fmt(inc.planned)}</p></div>
       <div class="card money-stat-card"><p class="money-stat-label">Out (exp + bills)</p><p class="money-stat-value" style="color:#FF8A7A;">${fmt(outActual)}</p><p class="money-stat-plan">plan ${fmt(outPlanned)}</p></div>
-      <div class="card money-stat-card"><p class="money-stat-label">Balance</p><p class="money-stat-value" style="color:${netColor};">${netFmt}</p><p class="money-stat-plan">plan ${planNet >= 0 ? '+' : '−'}${fmt(Math.abs(planNet))}</p></div>
+      <div class="card money-stat-card money-stat-card--balance"><p class="money-stat-label">Balance</p><p class="money-stat-value" style="color:${netColor};">${netFmt}</p><p class="money-stat-plan">plan ${planNet >= 0 ? '+' : '−'}${fmt(Math.abs(planNet))}</p>${flowSaveButton}${savedFromFlow ? `<p class="money-flow-saved-note">${fmt(savedFromFlow)} added to savings</p>` : ''}</div>
     </div>
+    ${flowSaveForm}
 
     <div class="money-chart-grid">
       <div class="card money-chart-card"><p class="money-chart-title">Where the money goes · ${monthLabel(month)}</p>${expenseDonut(month)}</div>
@@ -587,195 +680,24 @@ function renderFlow() {
 
 /* ---------- subscriptions (unchanged) ---------- */
 
+const SUB_LOGOS = {
+  telekom: {
+    bg: '#E20074',
+    svg: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#fff" d="M4 4.5h16v6h-1.1c-.15-2.7-1.35-4.1-4.15-4.1h-.55v10.1c0 1.9.45 2.4 2.4 2.4v1.1H7.4v-1.1c1.95 0 2.4-.5 2.4-2.4V6.4h-.55c-2.8 0-4 1.4-4.15 4.1H4v-6z"/></svg>`,
+  },
+  spotify: {
+    bg: '#191414',
+    svg: `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="#1DB954" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>`,
+  },
+};
+
+function subLogo(name) {
+  const n = name.trim().toLowerCase();
+  for (const key of Object.keys(SUB_LOGOS)) {
+    if (n.includes(key)) return SUB_LOGOS[key];
+  }
+  return null;
+}
+
 function renderSubs() {
-  const monthly = sum(state.subs, 'amount');
-  const subsHtml = state.subs.length
-    ? state.subs.map((x) => {
-      const initial = (x.name.trim()[0] || '?').toUpperCase();
-      return `<div class="card money-sub-row">
-        <span class="money-sub-avatar">${escapeHtml(initial)}</span>
-        <div class="money-sub-main">
-          <div class="money-sub-name">${escapeHtml(x.name)}</div>
-          <div class="money-sub-renew">Renews monthly on day ${x.day}</div>
-        </div>
-        ${amountCell('subs', x, 'amount', fmt(x.amount), 'money-sub-amount mono')}
-        <button type="button" class="money-del-btn" title="Cancel" data-action="delete" data-list="subs" data-id="${x.id}">×</button>
-      </div>`;
-    }).join('')
-    : emptyStateHTML('No subscriptions added yet.');
-
-  const form = state.openForm === 'sub' ? `
-    <form class="card money-inline-form" data-form="add-sub">
-      <input name="sub_name" placeholder="Service" required maxlength="40" class="money-f-grow2" />
-      <input name="sub_amount" type="number" placeholder="Ft / mo" required class="money-f-grow1 mono" />
-      <input name="sub_day" type="number" min="1" max="31" placeholder="Day (1–31)" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--gold">Save</button>
-    </form>` : '';
-
-  return `
-    <section class="money-summary-grid">
-      <div class="card money-stat-card"><p class="money-stat-label">Monthly</p><p class="money-summary-value">${fmt(monthly)}</p></div>
-      <div class="card money-stat-card"><p class="money-stat-label">Yearly</p><p class="money-summary-value" style="color:#F5B95F;">${fmt(monthly * 12)}</p></div>
-    </section>
-    <div class="section-label">
-      <span class="rule rule-s"></span>ACTIVE SUBSCRIPTIONS<span class="rule"></span>
-      <button type="button" class="money-add-btn money-add-btn--gold" data-action="toggle-form" data-key="sub">+ Subscription</button>
-    </div>
-    ${form}
-    ${subsHtml}`;
-}
-
-/* ---------- savings (unchanged) ---------- */
-
-function renderSave() {
-  const goals = state.goals;
-  const primary = goals[0];
-  const primaryPct = primary && primary.target ? Math.min(100, (primary.saved / primary.target) * 100) : 0;
-  const circumference = 2 * Math.PI * 80;
-  const ringOffset = circumference * (1 - primaryPct / 100);
-  const goalOptions = goals.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
-
-  const goalsHtml = goals.length
-    ? goals.map((g) => {
-      const pct = g.target ? Math.min(100, Math.round((g.saved / g.target) * 100)) : 0;
-      return `<div class="card money-goal-card">
-        <div class="money-goal-head">
-          <span class="money-goal-name">${escapeHtml(g.name)}</span>
-          <span class="money-goal-nums">${amountCell('goals', g, 'saved', fmt(g.saved), 'money-goal-fig mono')}<span class="money-goal-fig">/</span>${amountCell('goals', g, 'target', fmt(g.target), 'money-goal-fig mono')}<button type="button" class="money-del-btn money-del-btn--sm" title="Delete" data-action="delete" data-list="goals" data-id="${g.id}">×</button></span>
-        </div>
-        <div class="money-goal-bar-row">
-          <div class="money-bar-track"><span class="money-bar-fill money-bar-fill--gold" style="width:${pct}%;"></span></div>
-          <span class="money-goal-pct">${pct}%</span>
-        </div>
-      </div>`;
-    }).join('')
-    : emptyStateHTML('No savings goals added yet.');
-
-  const contribForm = state.openForm === 'contrib' ? `
-    <form class="card money-inline-form" data-form="contribute">
-      <select name="c_goal" class="money-f-grow2">${goalOptions}</select>
-      <input name="c_amount" type="number" placeholder="Amount" required class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--gold">Deposit</button>
-    </form>` : '';
-
-  const goalForm = state.openForm === 'goal' ? `
-    <form class="card money-inline-form" data-form="add-goal">
-      <input name="goal_name" placeholder="Goal name" required maxlength="40" class="money-f-grow2" />
-      <input name="goal_target" type="number" placeholder="Target amount" required class="money-f-grow1 mono" />
-      <input name="goal_saved" type="number" placeholder="Current" class="money-f-grow1 mono" />
-      <button type="submit" class="money-form-submit money-form-submit--gold">Create</button>
-    </form>` : '';
-
-  return `
-    <section class="card money-save-hero">
-      <div class="money-ring-wrap">
-        <svg viewBox="0 0 200 200" width="180" height="180" class="money-ring-svg" aria-hidden="true">
-          <circle cx="100" cy="100" r="80" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="16"></circle>
-          <circle cx="100" cy="100" r="80" fill="none" stroke="#F5B95F" stroke-width="16" stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${ringOffset}" class="money-ring-progress"></circle>
-        </svg>
-        <div class="money-ring-center">
-          <span class="money-ring-pct">${Math.round(primaryPct)}%</span>
-          <span class="money-ring-label">done</span>
-        </div>
-      </div>
-      <div class="money-save-info">
-        <p class="money-save-eyebrow">Primary goal</p>
-        <p class="money-save-goal-name">${primary ? escapeHtml(primary.name) : '—'}</p>
-        <div class="money-save-amount-row">
-          <span class="money-save-saved mono">${primary ? fmt(primary.saved) : fmt(0)}</span>
-          <span class="money-save-target">/ ${primary ? fmt(primary.target) : fmt(0)}</span>
-        </div>
-        <p class="money-save-remain">${primary ? fmt(Math.max(0, primary.target - primary.saved)) : fmt(0)} left to goal</p>
-      </div>
-    </section>
-    <div class="money-save-actions">
-      <button type="button" class="money-save-action-btn money-save-action-btn--gold" data-action="toggle-form" data-key="contrib">+ Deposit</button>
-      <button type="button" class="money-save-action-btn money-save-action-btn--ghost" data-action="toggle-form" data-key="goal">+ New goal</button>
-    </div>
-    ${contribForm}
-    ${goalForm}
-    ${goalsHtml}`;
-}
-
-/* ---------- render + events ---------- */
-
-const PANELS = { net: renderNetWorth, flow: renderFlow, subs: renderSubs, save: renderSave };
-
-function render() {
-  $('#money-tabs').innerHTML = renderTabs();
-  $('#money-panel').innerHTML = state.loaded ? PANELS[state.tab]() : emptyStateHTML('Loading…');
-  const input = $('#edit-input');
-  if (input) { input.focus(); input.select(); }
-}
-
-$('#money-tabs').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action="set-tab"]');
-  if (btn) setTab(btn.dataset.tab);
-});
-
-$('#money-panel').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
-  const a = btn.dataset.action;
-  if (a === 'toggle-form') toggleForm(btn.dataset.key);
-  else if (a === 'delete') { btn.dataset.list === 'flow' ? flowDel(btn.dataset.id) : delItem(btn.dataset.list, btn.dataset.id); }
-  else if (a === 'edit') { state.editing = { list: btn.dataset.list, id: btn.dataset.id, field: btn.dataset.field }; render(); }
-  else if (a === 'toggle-entries') { const id = btn.dataset.id; state.openEntries = String(state.openEntries) === String(id) ? null : id; render(); }
-  else if (a === 'move-up') flowMove(btn.dataset.id, -1);
-  else if (a === 'move-down') flowMove(btn.dataset.id, 1);
-  else if (a === 'seed-default') seedMonth(FIRST_MONTH, null);
-  else if (a === 'new-month') startNewMonth();
-  else if (a === 'month-prev' || a === 'month-next') {
-    const months = monthsWithData();
-    const i = months.indexOf(state.month) + (a === 'month-next' ? 1 : -1);
-    if (months[i]) { state.month = months[i]; state.openForm = null; state.editing = null; state.openEntries = null; render(); }
-  }
-});
-
-$('#money-panel').addEventListener('change', (e) => {
-  if (e.target.matches('[data-action="select-month"]')) {
-    state.month = e.target.value; state.openForm = null; state.editing = null; state.openEntries = null; render();
-  }
-});
-
-// inline edit lifecycle — Enter/blur saves, Esc cancels (input re-created each render)
-$('#money-panel').addEventListener('keydown', (e) => {
-  if (e.target.id !== 'edit-input') return;
-  if (e.key === 'Enter') { e.preventDefault(); commitEdit(e.target.value); }
-  if (e.key === 'Escape') { state.editing = null; render(); }
-});
-$('#money-panel').addEventListener('focusout', (e) => {
-  if (e.target.id === 'edit-input') commitEdit(e.target.value);
-});
-
-$('#money-panel').addEventListener('submit', (e) => {
-  const form = e.target.closest('form[data-form]');
-  if (!form) return;
-  e.preventDefault();
-  const fd = new FormData(form);
-  const str = (name) => (fd.get(name) || '').toString().trim();
-  const num = (name) => Number(fd.get(name)) || 0;
-
-  switch (form.dataset.form) {
-    case 'add-account':
-      pushItem('accounts', { name: str('acc_name'), type: str('acc_type') || 'Account', amount: num('acc_amount') });
-      break;
-    case 'add-flow':
-      flowAdd(form.dataset.grp, { name: str('f_name'), planned: num('f_planned'), actual: num('f_actual') });
-      break;
-    case 'add-sub':
-      pushItem('subs', { name: str('sub_name'), amount: num('sub_amount'), day: Math.min(31, Math.max(1, num('sub_day') || 1)) });
-      break;
-    case 'add-goal':
-      pushItem('goals', { name: str('goal_name'), target: num('goal_target'), saved: num('goal_saved') });
-      break;
-    case 'contribute':
-      contribute(fd.get('c_goal'), num('c_amount'));
-      break;
-    default:
-      break;
-  }
-});
-
-render();
-load();
+  const monthly = s

@@ -27,5 +27,4 @@ create policy "anon full access finance_flow"
   on public.finance_flow for all
   to anon using (true) with check (true);
 
--- No seed data needed here: the app creates July 2026 with your predefined
--- categories on first use (the "Create July 2026" button in the Flow tab).
+-- No seed data needed here: the app creates July 2

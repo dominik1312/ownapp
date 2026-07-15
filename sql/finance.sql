@@ -13,11 +13,16 @@ create table if not exists public.finance_items (
   day integer check (day between 1 and 31),   -- subs: renewal day of month
   target numeric,                             -- goals
   saved numeric,                              -- goals
+  goal_date date,                             -- goals: optional target date
+  is_primary boolean not null default false,  -- goals: featured goal in Savings
+  deposits jsonb not null default '[]'::jsonb,-- goals: append-only contribution history
   sort integer not null default 0,
   created_at timestamptz not null default now()
 );
 
 create index if not exists finance_items_list_idx on public.finance_items (list);
+create unique index if not exists finance_items_one_primary_goal_idx
+  on public.finance_items (is_primary) where list = 'goals' and is_primary = true;
 
 -- The browser talks to Supabase with the ANON key; give it read/write access
 -- (RLS is on by default when tables are created from the dashboard).
@@ -33,12 +38,4 @@ create policy "anon full access finance_items"
 --   ('accounts', 'Investment', 4800000, 'ETF portfolio');
 -- insert into public.finance_items (list, name, amount) values
 --   ('income', 'Salary', 640000),
---   ('income', 'Freelance', 80000),
---   ('categories', 'Housing', 180000),
---   ('categories', 'Groceries', 96000),
---   ('categories', 'Transport', 42000);
--- insert into public.finance_items (list, name, amount, day) values
---   ('subs', 'Netflix', 4490, 12),
---   ('subs', 'Spotify', 1990, 3);
--- insert into public.finance_items (list, name, target, saved) values
---   ('goals', 'Emergency fund', 3000000, 2100000);
+--   ('income', 'Freela
