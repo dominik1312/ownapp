@@ -44,10 +44,12 @@ const FLOW_GROUPS = [
 const state = {
   tab: 'net',
   openForm: null,
+  openEntries: null,  // flow row id whose itemized box is expanded, or null
   editing: null, // { list, id, field } while a value is being edited in place
   loaded: false,
   seeding: false,
   flowMissing: false, // finance_flow table not created yet
+  flowHasEntries: true, // finance_flow.entries column present (see finance_flow_entries.sql)
   accounts: [], subs: [], goals: [],
   flow: [],           // all finance_flow rows (every month)
   month: FIRST_MONTH, // currently selected month
@@ -55,6 +57,12 @@ const state = {
 
 const fmt = (n) => `${Math.round(n).toLocaleString('hu-HU')} ${CURRENCY_SUFFIX}`;
 const sum = (arr, key) => arr.reduce((a, b) => a + (Number(b[key]) || 0), 0);
+
+// Short date for an itemized entry, e.g. "júl. 8". Falls back gracefully.
+function entryDate(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' });
+}
 
 // Evaluate an amount entry, supporting + and − chains, e.g. "12000+3000-500".
 // Amount fields pre-fill with the current value, so appending "+500" adds to it
@@ -66,7 +74,7 @@ function evalAmount(raw) {
   return terms ? terms.reduce((a, t) => a + Number(t), 0) : NaN;
 }
 
-function setTab(tab) { state.tab = tab; state.openForm = null; state.editing = null; render(); }
+function setTab(tab) { state.tab = tab; state.openForm = null; state.editing = null; state.openEntries = null; render(); }
 function toggleForm(key) { state.openForm = state.openForm === key ? null : key; state.editing = null; render(); }
 
 /* ---------- month helpers ---------- */
@@ -102,6 +110,7 @@ function normalizeFlow(row) {
   return {
     id: row.id, month: row.month, grp: row.grp, name: row.name,
     planned: Number(row.planned ?? 0), actual: Number(row.actual ?? 0), sort: Number(row.sort ?? 0),
+    entries: Array.isArray(row.entries) ? row.entries : [], // itemized amounts added to actual
   };
 }
 
@@ -118,9 +127,13 @@ async function load() {
     const missing = flow.error.code === '42P01' || /does not exist|schema cache/i.test(flow.error.message ?? '');
     if (missing) { state.flowMissing = true; state.flow = []; }
     else { showError(flow.error); }
+    state.flowHasEntries = true;
   } else {
     state.flowMissing = false;
     state.flow = (flow.data ?? []).map(normalizeFlow);
+    // Existing installations enable this column with finance_flow_entries.sql.
+    const rows = flow.data ?? [];
+    state.flowHasEntries = rows.length ? rows.some((r) => 'entries' in r) : true;
   }
 
   const months = monthsWithData();
@@ -180,8 +193,10 @@ async function flowAdd(grp, obj) {
   const month = state.month;
   const peers = flowRows(month, grp);
   const sort = peers.length ? Math.max(...peers.map((r) => r.sort)) + 1 : 1;
+  const insert = { month, grp, name: obj.name, planned: obj.planned || 0, actual: obj.actual || 0, sort };
+  if (state.flowHasEntries) insert.entries = obj.actual ? [{ amt: obj.actual, at: new Date().toISOString() }] : [];
   const { data, error } = await supabase.from(FLOW_TABLE)
-    .insert({ month, grp, name: obj.name, planned: obj.planned || 0, actual: obj.actual || 0, sort })
+    .insert(insert)
     .select().single();
   if (error) return showError(error);
   state.flow = [...state.flow, normalizeFlow(data)];
@@ -300,8 +315,22 @@ function commitEdit(raw) {
   if (e.field === 'name') { value = String(raw).trim(); changed = !!value && value !== item.name; }
   else { value = evalAmount(raw); changed = Number.isFinite(value) && value !== Number(item[e.field]); }
   if (!changed) return render();
-  if (e.list === 'flow') flowPatch(e.id, { [e.field]: value });
-  else patchItem(e.list, e.id, { [e.field]: value });
+  if (e.list === 'flow') {
+    const changes = { [e.field]: value };
+    if (e.field === 'actual' && state.flowHasEntries) {
+      const delta = value - Number(item.actual || 0);
+      if (delta !== 0) {
+        const prevEntries = Array.isArray(item.entries) ? item.entries : [];
+        // Older individual inputs cannot be reconstructed, so preserve their
+        // current aggregate as a clearly labelled opening balance.
+        const baseline = !prevEntries.length && Number(item.actual)
+          ? [{ amt: Number(item.actual), at: null, baseline: true }]
+          : [];
+        changes.entries = [...baseline, ...prevEntries, { amt: delta, at: new Date().toISOString() }];
+      }
+    }
+    flowPatch(e.id, changes);
+  } else patchItem(e.list, e.id, { [e.field]: value });
 }
 
 /* ---------- tabs ---------- */
@@ -448,10 +477,26 @@ function flowGroupSection(month, g) {
     const pct = g.key === 'income' ? 0 : Math.round((r.actual / groupActual) * 100);
     const barPct = r.planned > 0 ? Math.min(100, (r.actual / r.planned) * 100) : (r.actual > 0 ? 100 : 0);
     const over = r.planned > 0 && r.actual > r.planned;
+    const open = String(state.openEntries) === String(r.id);
+    const logBtn = state.flowHasEntries ? `<button type="button" class="money-flow-log-btn${open ? ' is-open' : ''}" title="Show amounts added" aria-expanded="${open}" data-action="toggle-entries" data-id="${r.id}">Itemized ${open ? '▴' : '▾'}${r.entries.length ? ` ${r.entries.length}` : ''}</button>` : '';
+    const itemized = open ? `<div class="money-flow-items">${
+      r.entries.length
+        ? r.entries.slice().reverse().map((en) => {
+          const amount = Number(en.amt) || 0;
+          return `<span class="money-flow-item">
+            <span class="money-flow-item-amt${amount < 0 ? ' is-neg' : ''}">${amount >= 0 ? '+' : '−'}${fmt(Math.abs(amount))}</span>
+            <span class="money-flow-item-date">${en.baseline ? 'Earlier total' : entryDate(en.at)}</span>
+          </span>`;
+        }).join('')
+        : (r.actual
+          ? `<span class="money-flow-item"><span class="money-flow-item-amt">${fmt(r.actual)}</span><span class="money-flow-item-date">Earlier total</span></span>`
+          : `<span class="money-flow-item money-flow-item--empty">No itemized amounts yet. The next change to Actual will appear here.</span>`)
+    }</div>` : '';
     return `<div class="money-flow-row">
       <span class="money-flow-name">
         ${g.key !== 'income' ? `<span class="money-flow-pct">${pct}%</span>` : ''}
         ${editCell('flow', r, 'name', escapeHtml(r.name), { type: 'text' })}
+        ${logBtn}
       </span>
       <span class="money-flow-figs">
         <span class="money-flow-plan">${editCell('flow', r, 'planned', fmt(r.planned))}</span>
@@ -464,6 +509,7 @@ function flowGroupSection(month, g) {
         <button type="button" class="money-del-btn money-del-btn--sm" title="Delete" data-action="delete" data-list="flow" data-id="${r.id}">×</button>
       </span>
       <span class="money-flow-bar"><span style="width:${barPct}%;background:${over ? '#FF8A7A' : g.color};"></span></span>
+      ${itemized}
     </div>`;
   }).join('') : `<div class="money-chart-empty">No ${g.label.toLowerCase()} categories.</div>`;
 
@@ -674,6 +720,7 @@ $('#money-panel').addEventListener('click', (e) => {
   if (a === 'toggle-form') toggleForm(btn.dataset.key);
   else if (a === 'delete') { btn.dataset.list === 'flow' ? flowDel(btn.dataset.id) : delItem(btn.dataset.list, btn.dataset.id); }
   else if (a === 'edit') { state.editing = { list: btn.dataset.list, id: btn.dataset.id, field: btn.dataset.field }; render(); }
+  else if (a === 'toggle-entries') { const id = btn.dataset.id; state.openEntries = String(state.openEntries) === String(id) ? null : id; render(); }
   else if (a === 'move-up') flowMove(btn.dataset.id, -1);
   else if (a === 'move-down') flowMove(btn.dataset.id, 1);
   else if (a === 'seed-default') seedMonth(FIRST_MONTH, null);
@@ -681,13 +728,13 @@ $('#money-panel').addEventListener('click', (e) => {
   else if (a === 'month-prev' || a === 'month-next') {
     const months = monthsWithData();
     const i = months.indexOf(state.month) + (a === 'month-next' ? 1 : -1);
-    if (months[i]) { state.month = months[i]; state.openForm = null; state.editing = null; render(); }
+    if (months[i]) { state.month = months[i]; state.openForm = null; state.editing = null; state.openEntries = null; render(); }
   }
 });
 
 $('#money-panel').addEventListener('change', (e) => {
   if (e.target.matches('[data-action="select-month"]')) {
-    state.month = e.target.value; state.openForm = null; state.editing = null; render();
+    state.month = e.target.value; state.openForm = null; state.editing = null; state.openEntries = null; render();
   }
 });
 

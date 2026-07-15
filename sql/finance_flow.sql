@@ -13,6 +13,7 @@ create table if not exists public.finance_flow (
   planned numeric not null default 0,                     -- Tervezett
   actual numeric not null default 0,                      -- Tényleges
   sort integer not null default 0,                        -- order within a group/month
+  entries jsonb not null default '[]'::jsonb,             -- itemized log of amounts added to actual
   created_at timestamptz not null default now()
 );
 
