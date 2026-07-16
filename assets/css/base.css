@@ -136,7 +136,9 @@ a { color: inherit; text-decoration: none; }
 .page-sub { color: var(--muted); margin: 0; font-size: 13.5px; }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 22px; }
-.stack { display: grid; gap: 16px; }
+/* single-column stack; minmax(0,1fr) keeps the column locked to the container
+   width so a nowrap child (e.g. the ticker text) can't stretch the page wider. */
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 
 /* ---------- ticker (next todo, over the ring) ---------- */
 
@@ -234,6 +236,19 @@ a { color: inherit; text-decoration: none; }
   50%      { opacity: 1; }
 }
 
+/* Main page — phone polish. Scoped to Main-only components (ticker / rhythm /
+   today-head) so other modules are untouched. Structure & data are unchanged;
+   this only tightens spacing and type so it reads well on a narrow screen. */
+@media (max-width: 600px) {
+  .ticker { padding: 9px 14px; gap: 9px; }
+  .rhythm-card { padding: 18px 14px; }
+  .rhythm-inner { gap: 20px; padding: 8px 0; }
+  .rhythm-title p { font-size: 18px; }
+  .today-head { gap: 10px; }
+  .today-count { flex-wrap: wrap; }
+  .count-big { font-size: 34px; }
+}
+
 /* ---------- section label ---------- */
 
 .section-label {
@@ -292,7 +307,9 @@ a { color: inherit; text-decoration: none; }
   .add-form input[name='title'] { grid-column: 1 / -1; }
 }
 
-.task-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+/* minmax(0,1fr): lock the column to the container so a long nowrap task title
+   ellipsizes instead of stretching the row (and the page) wider on mobile. */
+.task-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .task {
   display: flex; align-items: center; gap: 12px;
   background: rgba(255, 255, 255, .02);
