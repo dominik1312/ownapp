@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Schedule · Dominik's Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/base.css" />
+  <link rel="stylesheet" href="../assets/css/schedule.css" />
+</head>
+<body>
+  <div class="wrap schedule-wrap">
+    <header class="page-head schedule-page-head">
+      <h1>📅 Schedule</h1>
+      <p class="page-sub">Shape the day before it shapes you</p>
+    </header>
+
+    <main>
+      <section class="schedule-card" aria-labelledby="schedule-date">
+        <div class="schedule-card-head">
+          <div class="schedule-date">
+            <h2 id="schedule-date">—</h2>
+            <span class="schedule-date-note" id="schedule-date-note">—</span>
+          </div>
+
+          <div class="schedule-actions" aria-label="Schedule date controls">
+            <button class="schedule-icon-btn" id="schedule-prev" type="button" aria-label="Previous day">‹</button>
+            <button class="schedule-today-btn" id="schedule-today" type="button">Today</button>
+            <button class="schedule-icon-btn" id="schedule-next" type="button" aria-label="Next day">›</button>
+            <button class="schedule-add-btn" id="schedule-add" type="button">+ Add block</button>
+          </div>
+        </div>
+
+        <div class="schedule-meta">
+          <span class="schedule-stats" id="schedule-stats">0 blocks · 0h planned</span>
+          <div class="schedule-legend" id="schedule-legend" aria-label="Schedule categories"></div>
+        </div>
+
+        <div class="schedule-scroll" id="schedule-scroll" aria-label="Daily timeline">
+          <div class="schedule-grid" id="schedule-grid">
+            <div class="schedule-blocks" id="schedule-blocks"></div>
+            <div class="schedule-now" id="schedule-now" hidden>
+              <span class="schedule-now-dot"></span>
+              <span class="schedule-now-label">Now</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="schedule-help">Tap empty space to add · long-press a block to move it</p>
+        <p class="status schedule-status" id="schedule-status" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+  </div>
+
+  <div class="schedule-overlay" id="schedule-overlay" hidden>
+    <section class="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
+      <div class="schedule-modal-handle" aria-hidden="true"></div>
+      <div class="schedule-modal-head">
+        <div>
+          <span class="schedule-modal-eyebrow">Time block</span>
+          <h2 id="schedule-modal-title">Add to schedule</h2>
+        </div>
+        <button class="schedule-close" id="schedule-close" type="button" aria-label="Close">×</button>
+      </div>
+
+      <form id="schedule-form">
+        <label class="schedule-field">
+          <span>What are you doing?</span>
+          <input id="schedule-title-input" name="title" type="text" maxlength="160" placeholder="e.g. Deep work" autocomplete="off" required />
+        </label>
+
+        <div class="schedule-time-fields">
+          <label class="schedule-field">
+            <span>Starts</span>
+            <input id="schedule-start-input" name="start" type="time" step="900" required />
+          </label>
+          <label class="schedule-field">
+            <span>Ends</span>
+            <input id="schedule-end-input" name="end" type="time" step="900" required />
+          </label>
+        </div>
+
+        <fieldset class="schedule-category-field">
+          <legend>Category</legend>
+          <div class="schedule-category-list" id="schedule-category-list"></div>
+        </fieldset>
+
+        <label class="schedule-field">
+          <span>Notes <em>optional</em></span>
+          <textarea id="schedule-notes-input" name="notes" maxlength="500" placeholder="Anything useful to remember…"></textarea>
+        </label>
+
+        <p class="schedule-form-error" id="schedule-form-error" role="alert"></p>
+
+        <div class="schedule-modal-actions">
+          <button class="schedule-delete-btn" id="schedule-delete" type="button" hidden>Delete</button>
+          <span class="schedule-action-spacer"></span>
+          <button class="schedule-cancel-btn" id="schedule-cancel" type="button">Cancel</button>
+          <button class="schedule-save-btn" id="schedule-save" type="submit">Save block</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <script type="module" src="../assets/js/schedule.js"></script>
+  <script type="module" src="../assets/js/nav.js"></script>
+</body>
+</html>
