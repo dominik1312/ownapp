@@ -1,0 +1,21 @@
+/*
+ * Phone form stability
+ *
+ * iOS Safari automatically zooms the page when an editable control uses text
+ * smaller than 16px. Keep the desktop typography unchanged while giving phone
+ * inputs a zoom-safe size in portrait and landscape orientations.
+ */
+@media (max-width: 768px), (max-height: 500px) and (orientation: landscape) {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  input:not([type='button']):not([type='submit']):not([type='reset']):not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']):not([type='range']),
+  textarea,
+  select,
+  [contenteditable='true'] {
+    box-sizing: border-box;
+    max-width: 100%;
+    font-size: 16px !important;
+  }
+}
