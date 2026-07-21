@@ -17,6 +17,18 @@ const DEFAULT_CATEGORIES = [
 
 const $ = (selector) => document.querySelector(selector);
 
+function dateFromUrl() {
+  const value = new URLSearchParams(location.search).get('date');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day
+    ? value
+    : null;
+}
+
 const elements = {
   card: $('.schedule-card'),
   date: $('#schedule-date'),
@@ -50,7 +62,7 @@ const elements = {
 };
 
 const state = {
-  activeDate: budapestToday(),
+  activeDate: dateFromUrl() || budapestToday(),
   entries: [],
   categories: DEFAULT_CATEGORIES.map((category, sort) => ({ ...category, sort })),
   categoryStorageReady: false,
@@ -763,8 +775,15 @@ function attachResize(block, entry) {
 
 function changeDay(days) {
   state.activeDate = addDays(state.activeDate, days);
+  syncActiveDateUrl();
   renderHeader();
   loadDay({ scroll: true });
+}
+
+function syncActiveDateUrl() {
+  const url = new URL(location.href);
+  url.searchParams.set('date', state.activeDate);
+  history.replaceState(null, '', url);
 }
 
 function scrollToUsefulTime() {
@@ -841,6 +860,7 @@ $('#schedule-prev').addEventListener('click', () => changeDay(-1));
 $('#schedule-next').addEventListener('click', () => changeDay(1));
 $('#schedule-today').addEventListener('click', () => {
   state.activeDate = budapestToday();
+  syncActiveDateUrl();
   loadDay({ scroll: true });
 });
 $('#schedule-add').addEventListener('click', () => openEditor());
@@ -868,7 +888,7 @@ window.addEventListener('orientationchange', fitTimelineToPhone);
 window.addEventListener('load', fitTimelineToPhone);
 window.addEventListener('pageshow', (event) => {
   if (event.persisted) {
-    state.activeDate = budapestToday();
+    state.activeDate = dateFromUrl() || budapestToday();
     loadDay({ scroll: true });
   }
 });
