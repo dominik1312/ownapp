@@ -41,5 +41,5 @@ That's it — the home grid on `index.html` renders from the registry only; no g
 | `settings` | key, value jsonb, updated_at — seeded: `day_window = {"wake":"07:00","sleep":"23:00"}` |
 | `finance_items` | id, list (`accounts`\|`income`\|`categories`\|`subs`\|`goals`), name, amount, type, day, target, saved, sort, created_at — **not applied yet**: run `sql/finance.sql` once in the Supabase SQL Editor |
 
-The Schedule module stores cross-device time blocks in `schedule_entries`.
+The Schedule module stores cross-device time blocks in `schedule_entries` and editable categories in `schedule_categories`.
 Run `sql/schedule.sql` once in the Supabase SQL Editor before using it.

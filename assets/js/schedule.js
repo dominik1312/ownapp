@@ -6,7 +6,7 @@ const START_HOUR = 6;
 const END_MINUTE = 24 * 60 - 1;
 const SNAP_MINUTES = 15;
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { key: 'training', label: 'Training', color: '#6BE3A4' },
   { key: 'work', label: 'Work', color: '#F36F4F' },
   { key: 'focus', label: 'Focus', color: '#6AA8FF' },
@@ -15,7 +15,6 @@ const CATEGORIES = [
   { key: 'personal', label: 'Personal', color: '#FF8FA3' },
 ];
 
-const categoryMap = new Map(CATEGORIES.map((category) => [category.key, category]));
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
@@ -37,6 +36,14 @@ const elements = {
   endInput: $('#schedule-end-input'),
   notesInput: $('#schedule-notes-input'),
   categoryList: $('#schedule-category-list'),
+  categoryManageButton: $('#schedule-category-manage'),
+  categoryManager: $('#schedule-category-manager'),
+  categoryManagerList: $('#schedule-category-manager-list'),
+  categoryCount: $('#schedule-category-count'),
+  categoryManagerStatus: $('#schedule-category-manager-status'),
+  categoryNewName: $('#schedule-category-new-name'),
+  categoryNewColor: $('#schedule-category-new-color'),
+  categoryAddButton: $('#schedule-category-add'),
   formError: $('#schedule-form-error'),
   deleteButton: $('#schedule-delete'),
   saveButton: $('#schedule-save'),
@@ -45,6 +52,8 @@ const elements = {
 const state = {
   activeDate: budapestToday(),
   entries: [],
+  categories: DEFAULT_CATEGORIES.map((category, sort) => ({ ...category, sort })),
+  categoryStorageReady: false,
   editingId: null,
   selectedCategory: 'focus',
   loadToken: 0,
@@ -88,7 +97,10 @@ function yToMinute(y) {
 }
 
 function categoryFor(key) {
-  return categoryMap.get(key) || categoryMap.get('personal');
+  return state.categories.find((category) => category.key === key)
+    || state.categories.find((category) => category.key === 'personal')
+    || state.categories[0]
+    || DEFAULT_CATEGORIES[0];
 }
 
 function dateObject(dateString) {
@@ -128,7 +140,7 @@ function showDataError(error) {
 }
 
 function renderLegend() {
-  elements.legend.innerHTML = CATEGORIES.map((category) => `
+  elements.legend.innerHTML = state.categories.map((category) => `
     <span class="schedule-legend-item">
       <i class="schedule-legend-dot" style="--cat:${category.color}"></i>
       ${escapeHtml(category.label)}
@@ -136,12 +148,182 @@ function renderLegend() {
 }
 
 function renderCategoryButtons() {
-  elements.categoryList.innerHTML = CATEGORIES.map((category) => `
+  elements.categoryList.innerHTML = state.categories.map((category) => `
     <button class="schedule-category-chip ${category.key === state.selectedCategory ? 'is-active' : ''}"
       type="button" data-category="${category.key}" style="--cat:${category.color}"
       aria-pressed="${category.key === state.selectedCategory}">
       ${escapeHtml(category.label)}
     </button>`).join('');
+}
+
+function renderCategoryManager() {
+  elements.categoryCount.textContent = `${state.categories.length} ${state.categories.length === 1 ? 'category' : 'categories'}`;
+  elements.categoryManagerList.innerHTML = state.categories.map((category) => `
+    <div class="schedule-category-manager-row" data-category-row="${escapeHtml(category.key)}" style="--cat:${escapeHtml(category.color)}">
+      <label class="schedule-category-color-picker" title="Change ${escapeHtml(category.label)} color">
+        <input class="schedule-category-color" type="color" value="${escapeHtml(category.color)}" aria-label="${escapeHtml(category.label)} color" />
+        <span class="schedule-category-color-preview"></span>
+      </label>
+      <div class="schedule-category-name-wrap">
+        <input class="schedule-category-name" type="text" maxlength="32" value="${escapeHtml(category.label)}" aria-label="Category name" />
+      </div>
+      <button class="schedule-category-save-btn" type="button" data-category-action="save">
+        <span aria-hidden="true">✓</span><span class="schedule-category-save-label">Update</span>
+      </button>
+      <button class="schedule-category-remove-btn" type="button" data-category-action="delete" aria-label="Delete ${escapeHtml(category.label)}" title="Delete ${escapeHtml(category.label)}"${state.categories.length === 1 ? ' disabled' : ''}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5"/></svg>
+      </button>
+    </div>`).join('');
+}
+
+function renderCategories() {
+  renderLegend();
+  renderCategoryButtons();
+  renderCategoryManager();
+  renderEntries();
+}
+
+function setCategoryManagerStatus(message = '', error = false) {
+  elements.categoryManagerStatus.textContent = message;
+  elements.categoryManagerStatus.style.color = error ? '#FF8A7A' : '';
+}
+
+function categoryStorageError(error) {
+  return isMissingTable(error)
+    ? 'Category storage is not ready — run the latest sql/schedule.sql in Supabase.'
+    : error?.message || 'Could not save the category.';
+}
+
+async function loadCategories() {
+  const { data, error } = await supabase
+    .from('schedule_categories')
+    .select('key,label,color,sort')
+    .order('sort')
+    .order('created_at');
+
+  if (error) {
+    state.categoryStorageReady = false;
+    state.categories = DEFAULT_CATEGORIES.map((category, sort) => ({ ...category, sort }));
+  } else {
+    state.categoryStorageReady = true;
+    state.categories = data?.length
+      ? data
+      : DEFAULT_CATEGORIES.map((category, sort) => ({ ...category, sort }));
+  }
+
+  if (!state.categories.some((category) => category.key === state.selectedCategory)) {
+    state.selectedCategory = state.categories[0]?.key || 'focus';
+  }
+  renderCategories();
+}
+
+function makeCategoryKey(label) {
+  const base = label.toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 22) || 'category';
+  let key = base;
+  let suffix = 2;
+  while (state.categories.some((category) => category.key === key)) {
+    key = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return key;
+}
+
+async function addCategory() {
+  if (state.saving) return;
+  const label = elements.categoryNewName.value.trim();
+  const color = elements.categoryNewColor.value;
+  if (!label) {
+    setCategoryManagerStatus('Enter a category name.', true);
+    elements.categoryNewName.focus();
+    return;
+  }
+  if (!state.categoryStorageReady) {
+    setCategoryManagerStatus(categoryStorageError({ code: '42P01' }), true);
+    return;
+  }
+
+  const category = {
+    key: makeCategoryKey(label),
+    label,
+    color,
+    sort: Math.max(-1, ...state.categories.map((item) => Number(item.sort) || 0)) + 1,
+    updated_at: new Date().toISOString(),
+  };
+  setCategoryManagerStatus('Adding…');
+  const { error } = await supabase.from('schedule_categories').insert(category);
+  if (error) {
+    setCategoryManagerStatus(categoryStorageError(error), true);
+    return;
+  }
+  state.selectedCategory = category.key;
+  elements.categoryNewName.value = '';
+  await loadCategories();
+  setCategoryManagerStatus('Category added.');
+}
+
+async function saveCategory(row) {
+  if (state.saving) return;
+  const key = row.dataset.categoryRow;
+  const label = row.querySelector('.schedule-category-name').value.trim();
+  const color = row.querySelector('.schedule-category-color').value;
+  if (!label) {
+    setCategoryManagerStatus('Category names cannot be empty.', true);
+    return;
+  }
+  if (!state.categoryStorageReady) {
+    setCategoryManagerStatus(categoryStorageError({ code: '42P01' }), true);
+    return;
+  }
+
+  setCategoryManagerStatus('Saving…');
+  const { error } = await supabase
+    .from('schedule_categories')
+    .update({ label, color, updated_at: new Date().toISOString() })
+    .eq('key', key);
+  if (error) {
+    setCategoryManagerStatus(categoryStorageError(error), true);
+    return;
+  }
+  await loadCategories();
+  setCategoryManagerStatus('Category updated.');
+}
+
+async function deleteCategory(row) {
+  if (state.saving || state.categories.length <= 1) return;
+  const key = row.dataset.categoryRow;
+  const category = state.categories.find((item) => item.key === key);
+  const replacement = state.categories.find((item) => item.key !== key);
+  if (!category || !replacement) return;
+  if (!window.confirm(`Delete “${category.label}”? Existing blocks will move to “${replacement.label}”.`)) return;
+  if (!state.categoryStorageReady) {
+    setCategoryManagerStatus(categoryStorageError({ code: '42P01' }), true);
+    return;
+  }
+
+  setCategoryManagerStatus('Deleting…');
+  const moved = await supabase
+    .from('schedule_entries')
+    .update({ category: replacement.key, updated_at: new Date().toISOString() })
+    .eq('category', key);
+  if (moved.error) {
+    setCategoryManagerStatus(moved.error.message, true);
+    return;
+  }
+  const removed = await supabase.from('schedule_categories').delete().eq('key', key);
+  if (removed.error) {
+    setCategoryManagerStatus(categoryStorageError(removed.error), true);
+    return;
+  }
+
+  if (state.selectedCategory === key) state.selectedCategory = replacement.key;
+  await loadCategories();
+  setCategoryManagerStatus('Category deleted.');
+  await loadDay();
 }
 
 function renderHeader() {
@@ -339,7 +521,9 @@ function nextStartTime() {
 
 function openEditor(entry = null, prefill = null) {
   state.editingId = entry?.id || null;
-  state.selectedCategory = entry?.category || 'focus';
+  state.selectedCategory = state.categories.some((category) => category.key === entry?.category)
+    ? entry.category
+    : state.categories.find((category) => category.key === 'focus')?.key || state.categories[0]?.key || 'focus';
   elements.modalTitle.textContent = entry ? 'Edit schedule block' : 'Add to schedule';
   elements.titleInput.value = entry?.title || '';
   elements.notesInput.value = entry?.notes || '';
@@ -350,7 +534,12 @@ function openEditor(entry = null, prefill = null) {
   elements.endInput.value = entry ? inputTime(entry.end_time) : minutesToTime(suggestedEnd);
   elements.deleteButton.hidden = !entry;
   elements.formError.textContent = '';
+  elements.categoryManager.hidden = true;
+  elements.categoryManageButton.setAttribute('aria-expanded', 'false');
+  elements.categoryManageButton.textContent = 'Manage';
+  setCategoryManagerStatus('');
   renderCategoryButtons();
+  renderCategoryManager();
 
   elements.overlay.hidden = false;
   state.previousBodyOverflow = document.body.style.overflow;
@@ -609,6 +798,37 @@ elements.categoryList.addEventListener('click', (event) => {
   renderCategoryButtons();
 });
 
+elements.categoryManageButton.addEventListener('click', () => {
+  const opening = elements.categoryManager.hidden;
+  elements.categoryManager.hidden = !opening;
+  elements.categoryManageButton.setAttribute('aria-expanded', String(opening));
+  elements.categoryManageButton.textContent = opening ? 'Done' : 'Manage';
+  setCategoryManagerStatus(state.categoryStorageReady ? '' : categoryStorageError({ code: '42P01' }), !state.categoryStorageReady);
+  if (opening) renderCategoryManager();
+});
+
+elements.categoryAddButton.addEventListener('click', addCategory);
+elements.categoryNewName.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  addCategory();
+});
+elements.categoryNewColor.addEventListener('input', () => {
+  elements.categoryNewColor.nextElementSibling?.style.setProperty('--cat', elements.categoryNewColor.value);
+  elements.categoryNewColor.closest('.schedule-category-color-picker')?.style.setProperty('--cat', elements.categoryNewColor.value);
+});
+elements.categoryManagerList.addEventListener('input', (event) => {
+  if (!event.target.matches('.schedule-category-color')) return;
+  event.target.closest('[data-category-row]')?.style.setProperty('--cat', event.target.value);
+});
+elements.categoryManagerList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-category-action]');
+  const row = button?.closest('[data-category-row]');
+  if (!button || !row) return;
+  if (button.dataset.categoryAction === 'save') saveCategory(row);
+  if (button.dataset.categoryAction === 'delete') deleteCategory(row);
+});
+
 elements.blocks.addEventListener('click', (event) => {
   if (event.target !== elements.blocks || Date.now() < state.suppressClickUntil) return;
   const rect = elements.blocks.getBoundingClientRect();
@@ -658,10 +878,18 @@ supabase
   .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_entries' }, () => loadDay())
   .subscribe();
 
-renderLegend();
-renderCategoryButtons();
-buildGrid();
-render();
-loadDay({ scroll: true });
-fitTimelineToPhone();
+supabase
+  .channel('schedule-category-live')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_categories' }, () => loadCategories())
+  .subscribe();
+
+async function initialize() {
+  await loadCategories();
+  buildGrid();
+  render();
+  await loadDay({ scroll: true });
+  fitTimelineToPhone();
+}
+
+initialize();
 setInterval(renderNowLine, 30_000);

@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/base.css" />
-  <link rel="stylesheet" href="../assets/css/schedule.css" />
+  <link rel="stylesheet" href="../assets/css/schedule.css?v=3" />
 </head>
 <body>
   <div class="wrap schedule-wrap">
@@ -84,8 +84,36 @@
         </div>
 
         <fieldset class="schedule-category-field">
-          <legend>Category</legend>
+          <legend class="schedule-category-heading">
+            <span>Category</span>
+            <button class="schedule-category-manage-btn" id="schedule-category-manage" type="button" aria-expanded="false">Manage</button>
+          </legend>
           <div class="schedule-category-list" id="schedule-category-list"></div>
+          <div class="schedule-category-manager" id="schedule-category-manager" hidden>
+            <div class="schedule-category-manager-head">
+              <div>
+                <strong>Category library</strong>
+                <span>Personalize labels and colors</span>
+              </div>
+              <span class="schedule-category-count" id="schedule-category-count"></span>
+            </div>
+            <div class="schedule-category-manager-list" id="schedule-category-manager-list"></div>
+            <div class="schedule-category-create">
+              <div class="schedule-category-create-head">
+                <span class="schedule-category-create-icon">+</span>
+                <div><strong>Create category</strong><span>Add another lane to your day</span></div>
+              </div>
+              <div class="schedule-category-add-row">
+                <label class="schedule-category-color-picker" style="--cat:#6AA8FF" aria-label="Choose new category color">
+                  <input class="schedule-category-color" id="schedule-category-new-color" type="color" value="#6AA8FF" aria-label="New category color" />
+                  <span class="schedule-category-color-preview"></span>
+                </label>
+                <input class="schedule-category-name" id="schedule-category-new-name" type="text" maxlength="32" placeholder="Category name" autocomplete="off" aria-label="New category name" />
+                <button class="schedule-category-add-btn" id="schedule-category-add" type="button">Add category</button>
+              </div>
+            </div>
+            <p class="schedule-category-manager-status" id="schedule-category-manager-status" role="status" aria-live="polite"></p>
+          </div>
         </fieldset>
 
         <label class="schedule-field">
@@ -105,7 +133,7 @@
     </section>
   </div>
 
-  <script type="module" src="../assets/js/schedule.js"></script>
+  <script type="module" src="../assets/js/schedule.js?v=3"></script>
   <script type="module" src="../assets/js/nav.js"></script>
 </body>
 </html>
