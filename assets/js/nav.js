@@ -4,7 +4,7 @@
 import { MODULE_REGISTRY } from './config.js';
 
 // The "major" pages that get the bar, in tab order. Extend as modules mature.
-const NAV_IDS = ['main', 'body', 'habits', 'money'];
+const NAV_IDS = ['main', 'body', 'habits', 'money', 'schedule'];
 
 function fileOf(href) { return href.split('/').pop(); } // 'modules/main.html' -> 'main.html'
 
