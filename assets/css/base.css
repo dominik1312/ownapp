@@ -732,10 +732,12 @@ body.has-bottom-nav .wrap { padding-bottom: 24px; }
 .money-flow-row:hover { background: rgba(255,255,255,.03); }
 .money-flow-row + .money-flow-row { border-top: 1px solid var(--line); }
 .money-flow-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; }
+.money-flow-title-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .money-flow-name .money-amount-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .money-flow-pct { color: var(--faint); font-family: 'JetBrains Mono', monospace; font-size: 11px; flex: none; width: 30px; text-align: right; }
 .money-flow-figs { display: flex; align-items: center; gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; white-space: nowrap; }
 .money-flow-plan .money-amount-btn { color: var(--muted); }
+.money-flow-fig-label { display: none; }
 .money-flow-sep { color: var(--faint); }
 .money-flow-act { color: var(--text); font-weight: 500; }
 .money-flow-ctrls { display: flex; align-items: center; gap: 1px; }
@@ -770,6 +772,252 @@ body.has-bottom-nav .wrap { padding-bottom: 24px; }
 .money-flow-item-amt.is-neg { color: #FF8A7A; }
 .money-flow-item-date { color: var(--faint); font-size: 11px; white-space: nowrap; }
 .money-flow-item--empty { color: var(--faint); justify-content: flex-start; font-family: inherit; }
+
+@media (max-width: 680px) {
+  /* Keep the four primary tabs inside the phone viewport. */
+  .money-tabbar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+    overflow: visible;
+  }
+
+  .money-tab {
+    min-width: 0;
+    padding: 10px 2px;
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+  }
+
+  /* Month selection becomes a stable three-control row. */
+  .money-month-bar {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    gap: 8px;
+  }
+
+  .money-month-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .money-month-nav {
+    width: 38px;
+    height: 38px;
+  }
+
+  .money-month-spacer { display: none; }
+
+  .money-month-bar .money-add-btn {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    min-height: 38px;
+  }
+
+  /* Summary cards read as compact rows instead of three narrow columns. */
+  .money-stat-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .money-stat-grid .money-stat-card,
+  .money-stat-grid .money-stat-card--balance {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 2px 12px;
+    padding: 12px 14px;
+  }
+
+  .money-stat-grid .money-stat-label {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .money-stat-grid .money-stat-value {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .money-stat-grid .money-stat-plan {
+    grid-column: 1;
+    grid-row: 2;
+    margin: 2px 0 0;
+  }
+
+  .money-stat-grid .money-flow-save-btn,
+  .money-stat-grid .money-flow-saved-note {
+    grid-column: 1 / -1;
+  }
+
+  .money-chart-card { padding: 15px; }
+  .money-donut-wrap { justify-content: center; }
+
+  /* Group headings have their own hierarchy and cannot stretch the page. */
+  .money-flow-group-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 0 2px;
+    letter-spacing: .12em;
+  }
+
+  .money-flow-group-head .rule { display: none; }
+  .money-flow-group-name { align-self: center; color: var(--text); }
+  .money-flow-group-head .money-group-tot { align-self: center; font-size: 10.5px; }
+
+  .money-flow-group-head .money-add-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 38px;
+    margin-top: 4px;
+  }
+
+  .money-inline-form {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .money-inline-form > * { width: 100%; }
+
+  /* Each category becomes a two-level card: identity, then numbers. */
+  .money-flow-section {
+    padding: 7px;
+    overflow: hidden;
+  }
+
+  .money-flow-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name controls'
+      'figs figs'
+      'bar bar'
+      'items items';
+    gap: 9px 8px;
+    padding: 12px 8px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+  }
+
+  .money-flow-row + .money-flow-row {
+    margin-top: 4px;
+    border-top-color: transparent;
+  }
+
+  .money-flow-row:nth-child(odd) { background: rgba(255, 255, 255, .018); }
+
+  .money-flow-name {
+    grid-area: name;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+
+  .money-flow-title-line {
+    width: 100%;
+    gap: 7px;
+  }
+
+  .money-flow-title-line .money-amount-btn {
+    flex: 1;
+    padding: 2px 0;
+    color: var(--text);
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .money-flow-pct {
+    width: auto;
+    min-width: 29px;
+    padding: 2px 5px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .045);
+    font-size: 9.5px;
+    text-align: center;
+  }
+
+  .money-flow-log-btn {
+    padding: 5px 8px;
+    border-color: rgba(245, 185, 95, .17);
+    color: rgba(245, 185, 95, .72);
+    background: rgba(245, 185, 95, .045);
+    font-size: 9.5px;
+  }
+
+  .money-flow-figs {
+    grid-area: figs;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    width: 100%;
+  }
+
+  .money-flow-plan,
+  .money-flow-actual {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, .14);
+  }
+
+  .money-flow-fig-label {
+    display: block;
+    color: var(--faint);
+    font-family: 'Inter', sans-serif;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .money-flow-plan .money-amount-btn,
+  .money-flow-actual .money-amount-btn {
+    width: 100%;
+    padding: 0;
+    overflow: hidden;
+    font-size: 12px;
+    text-align: left;
+    text-overflow: ellipsis;
+  }
+
+  .money-flow-sep { display: none; }
+
+  .money-flow-ctrls {
+    grid-area: controls;
+    align-self: start;
+  }
+
+  .money-move-btn,
+  .money-del-btn--sm {
+    min-width: 27px;
+    min-height: 27px;
+  }
+
+  .money-flow-bar { grid-area: bar; margin: 0; }
+
+  .money-flow-items {
+    grid-area: items;
+    max-height: 180px;
+    margin-top: 0;
+    overflow-y: auto;
+  }
+
+  .money-flow-item {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, .035);
+  }
+
+  .money-flow-item:last-child { border-bottom: 0; }
+}
 
 /* ---------- habits module ---------- */
 /* Habits tint is #6BE3A4 (green). Design adopted from the "Habits — Daily

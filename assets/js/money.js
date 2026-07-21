@@ -556,14 +556,16 @@ function flowGroupSection(month, g) {
     }</div>` : '';
     return `<div class="money-flow-row">
       <span class="money-flow-name">
-        ${g.key !== 'income' ? `<span class="money-flow-pct">${pct}%</span>` : ''}
-        ${editCell('flow', r, 'name', escapeHtml(r.name), { type: 'text' })}
+        <span class="money-flow-title-line">
+          ${g.key !== 'income' ? `<span class="money-flow-pct">${pct}%</span>` : ''}
+          ${editCell('flow', r, 'name', escapeHtml(r.name), { type: 'text' })}
+        </span>
         ${logBtn}
       </span>
       <span class="money-flow-figs">
-        <span class="money-flow-plan">${editCell('flow', r, 'planned', fmt(r.planned))}</span>
+        <span class="money-flow-plan"><span class="money-flow-fig-label">Planned</span>${editCell('flow', r, 'planned', fmt(r.planned))}</span>
         <span class="money-flow-sep">→</span>
-        ${editCell('flow', r, 'actual', fmt(r.actual), { cls: 'money-flow-act' })}
+        <span class="money-flow-actual"><span class="money-flow-fig-label">Actual</span>${editCell('flow', r, 'actual', fmt(r.actual), { cls: 'money-flow-act' })}</span>
       </span>
       <span class="money-flow-ctrls">
         <button type="button" class="money-move-btn" title="Move up" data-action="move-up" data-id="${r.id}"${i === 0 ? ' disabled' : ''}>▲</button>
@@ -584,8 +586,8 @@ function flowGroupSection(month, g) {
     </form>` : '';
 
   return `
-    <div class="section-label">
-      <span class="rule rule-s"></span>${g.label.toUpperCase()}
+    <div class="section-label money-flow-group-head">
+      <span class="rule rule-s"></span><span class="money-flow-group-name">${g.label.toUpperCase()}</span>
       <span class="money-group-tot">${fmt(tot.actual)} / ${fmt(tot.planned)}</span>
       <span class="rule"></span>
       <button type="button" class="money-add-btn money-add-btn--${g.btn}" data-action="toggle-form" data-key="flow-${g.key}">+ ${g.label}</button>
