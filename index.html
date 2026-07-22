@@ -25,13 +25,10 @@
     import { MODULE_REGISTRY } from './assets/js/config.js';
     import { budapestToday, dayProgress, loadDayWindow, ringSVG, setRing, escapeHtml, TZ } from './assets/js/ui.js';
 
-    // TZ: Europe/Budapest — header date shows the Budapest calendar day.
     document.getElementById('today').textContent = new Intl.DateTimeFormat('en-US', {
       timeZone: TZ, year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
     }).format(new Date());
 
-    /* Tile grid — rendered from MODULE_REGISTRY ONLY.
-       A new module = one registry entry + one HTML file; this code never changes. */
     document.getElementById('grid').innerHTML = MODULE_REGISTRY.map(tileHTML).join('');
 
     function tileHTML(m, i) {
@@ -49,16 +46,15 @@
       </a>`;
     }
 
-    /* Compact live widget on the Main tile: small day ring + done/total + next task.
-       Supabase is imported dynamically so the grid still renders if the CDN/keys fail. */
     enhanceMainTile();
-    enhanceMindTile();
+    enhanceHealthTile();
+
     async function enhanceMainTile() {
       const slot = document.querySelector('[data-live="main"]');
       if (!slot) return;
       try {
         const { supabase } = await import('./assets/js/supabase.js');
-        const today = budapestToday(); // TZ: Europe/Budapest — tasks are keyed to Budapest today
+        const today = budapestToday();
         const [dayWindow, res] = await Promise.all([
           loadDayWindow(supabase),
           supabase.from('tasks')
@@ -68,42 +64,41 @@
             .order('sort', { ascending: true }),
         ]);
         const tasks = res.data ?? [];
-        const next = tasks.find((t) => !t.done);
+        const next = tasks.find((task) => !task.done);
         slot.innerHTML = `
           <span class="mini-ring">${ringSVG(56, 6)}</span>
           <span class="mini-meta">
-            <span class="mini-count">${tasks.filter((t) => t.done).length}/${tasks.length}</span>
+            <span class="mini-count">${tasks.filter((task) => task.done).length}/${tasks.length}</span>
             <span class="mini-next">${next ? escapeHtml(next.title) : 'Nothing left today'}</span>
           </span>`;
-        const tick = () => setRing(slot, dayProgress(dayWindow).progress); // TZ: Europe/Budapest
+        const tick = () => setRing(slot, dayProgress(dayWindow).progress);
         tick();
-        setInterval(tick, 1000); // keep the small ring live too
+        setInterval(tick, 1000);
       } catch {
-        /* Supabase not configured / unreachable — tile stays static */
+        /* Supabase not configured or unreachable — the tile stays static. */
       }
     }
 
-    /* Compact live widget on the Mind tile: mini violet ring + today's overall score.
-       Supabase is imported dynamically so the grid still renders if the CDN/keys fail. */
-    async function enhanceMindTile() {
-      const slot = document.querySelector('[data-live="mind"]');
+    async function enhanceHealthTile() {
+      const slot = document.querySelector('[data-live="health"]');
       if (!slot) return;
       try {
         const { supabase } = await import('./assets/js/supabase.js');
-        const today = budapestToday(); // TZ: Europe/Budapest — check-ins are keyed to Budapest today
-        const { data } = await supabase.from('mind_logs')
-          .select('mood,energy,focus').eq('for_date', today).maybeSingle();
-        const vals = data ? [data.mood, data.energy, data.focus].filter((v) => v != null) : [];
-        const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+        const today = budapestToday();
+        const { data, error } = await supabase.from('health_logs')
+          .select('sleep_hours,water_glasses,steps').eq('for_date', today).maybeSingle();
+        if (error) return;
+        const complete = data
+          ? Number(data.sleep_hours >= 8) + Number(data.water_glasses >= 8) + Number(data.steps >= 8000)
+          : 0;
         slot.innerHTML = `
-          <span class="mini-ring">${ringSVG(44, 5)}</span>
+          <span class="health-tile-pulse" aria-hidden="true">♥</span>
           <span class="mini-meta">
-            <span class="mini-count">${avg == null ? '—' : `${avg.toFixed(1)} / 5`}</span>
-            <span class="mini-next">${avg == null ? 'Not checked in' : 'Mood · energy · focus'}</span>
+            <span class="mini-count">${data ? `${complete} / 3 goals` : 'Check in'}</span>
+            <span class="mini-next">${data ? `${data.sleep_hours ?? '—'}h sleep · ${(data.steps ?? 0).toLocaleString()} steps` : 'Start today’s health log'}</span>
           </span>`;
-        setRing(slot, avg == null ? 0 : avg / 5);
       } catch {
-        /* Supabase not configured / unreachable — tile stays static */
+        /* Supabase not configured or unreachable — the tile stays static. */
       }
     }
   </script>

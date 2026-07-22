@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#09111f" />
+  <title>Health · Dominik's Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/base.css" />
+  <link rel="stylesheet" href="../assets/css/mobile-forms.css?v=2" />
+  <link rel="stylesheet" href="../assets/css/nav-calendar.css?v=4" />
+  <link rel="stylesheet" href="../assets/css/health.css?v=1" />
+</head>
+<body class="health-page">
+  <div class="wrap">
+    <header class="page-head health-hero">
+      <span class="health-hero-kicker">Personal wellness</span>
+      <h1>❤️ Health</h1>
+      <p class="page-sub">A quieter view of the signals that shape your day.</p>
+    </header>
+
+    <main class="stack health-main">
+      <section class="card health-card">
+        <div class="health-card-head">
+          <div>
+            <span class="health-eyebrow">Daily check-in</span>
+            <h2>How is your body doing?</h2>
+          </div>
+          <span class="health-date" id="healthDate"></span>
+        </div>
+
+        <div class="health-layout">
+          <section class="health-summary" aria-label="Today's health summary">
+            <div class="health-score-ring" id="healthRing">
+              <div class="health-score-center">
+                <strong id="healthScore">—</strong>
+                <span>health score</span>
+              </div>
+            </div>
+            <div class="health-goals"><strong id="healthGoals">0 of 3</strong><span>daily goals reached</span></div>
+            <div class="health-insight" id="healthInsight">Log today’s basics to see your daily read.</div>
+          </section>
+
+          <section class="health-checkin" aria-label="Today's health log">
+            <div class="health-metrics">
+              <label class="health-metric">
+                <span class="health-metric-icon">🌙</span>
+                <span class="health-metric-copy"><strong>Sleep</strong><small>Goal: 8 hours</small></span>
+                <span class="health-input-wrap"><input id="sleepInput" type="number" min="0" max="24" step="0.5" inputmode="decimal" aria-label="Hours slept" /><span>h</span></span>
+                <span class="health-progress"><i id="sleepProgress"></i></span>
+              </label>
+
+              <div class="health-metric">
+                <span class="health-metric-icon">💧</span>
+                <span class="health-metric-copy"><strong>Water</strong><small>Goal: 8 glasses</small></span>
+                <span class="health-stepper">
+                  <button type="button" id="waterMinus" aria-label="Remove one glass of water">−</button>
+                  <strong id="waterValue">0</strong>
+                  <button type="button" id="waterPlus" aria-label="Add one glass of water">+</button>
+                </span>
+                <span class="health-progress"><i id="waterProgress"></i></span>
+              </div>
+
+              <label class="health-metric">
+                <span class="health-metric-icon">👟</span>
+                <span class="health-metric-copy"><strong>Steps</strong><small>Goal: 8,000</small></span>
+                <span class="health-input-wrap health-input-wide"><input id="stepsInput" type="number" min="0" max="100000" step="500" inputmode="numeric" aria-label="Steps walked" /><span>steps</span></span>
+                <span class="health-progress"><i id="stepsProgress"></i></span>
+              </label>
+
+              <label class="health-metric">
+                <span class="health-metric-icon">⚖️</span>
+                <span class="health-metric-copy"><strong>Weight</strong><small>Optional trend marker</small></span>
+                <span class="health-input-wrap"><input id="weightInput" type="number" min="20" max="400" step="0.1" inputmode="decimal" aria-label="Weight in kilograms" /><span>kg</span></span>
+                <span class="health-progress health-progress-neutral"><i id="weightProgress"></i></span>
+              </label>
+            </div>
+
+            <section class="supplement-tracker" aria-labelledby="supplementTitle">
+              <div class="supplement-head">
+                <div>
+                  <span class="health-eyebrow">Daily supplements</span>
+                  <h3 id="supplementTitle">What’s left today</h3>
+                </div>
+                <span class="supplement-count" id="supplementCount">0 / 0 taken</span>
+              </div>
+
+              <div class="supplement-groups" id="supplementGroups">
+                <p class="supplement-empty">Add the supplements you already use to start today’s checklist.</p>
+              </div>
+
+              <form class="supplement-add" id="supplementForm">
+                <input id="supplementName" type="text" maxlength="60" placeholder="Supplement name" aria-label="Supplement name" required />
+                <input id="supplementDose" type="text" maxlength="40" placeholder="Dose (optional)" aria-label="Supplement dose" />
+                <select id="supplementTime" aria-label="When to take it">
+                  <option value="morning">Morning</option>
+                  <option value="afternoon">Afternoon</option>
+                  <option value="evening">Evening</option>
+                  <option value="anytime">Anytime</option>
+                </select>
+                <button type="submit">Add</button>
+              </form>
+              <p class="supplement-note">Track only supplements you’ve chosen to take; this does not recommend new ones.</p>
+            </section>
+            <p class="health-save-state" id="healthSaveState" role="status" aria-live="polite"></p>
+          </section>
+        </div>
+
+        <section class="health-history">
+          <div class="health-history-head"><span class="health-eyebrow">Last 7 days</span><span id="healthHistoryLabel">No entries yet</span></div>
+          <div class="health-history-bars" id="healthHistoryBars"></div>
+        </section>
+      </section>
+      <p class="status" id="health-status" role="status"></p>
+    </main>
+  </div>
+
+  <script type="module" src="../assets/js/health.js"></script>
+  <script type="module" src="../assets/js/nav.js?v=4"></script>
+</body>
+</html>
