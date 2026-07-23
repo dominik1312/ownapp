@@ -26,7 +26,7 @@
 
   <script type="module">
     import { MODULE_REGISTRY } from './assets/js/config.js';
-    import { budapestToday, dayProgress, loadDayWindow, ringSVG, setRing, escapeHtml, TZ } from './assets/js/ui.js';
+    import { budapestToday, ringSVG, setRing, escapeHtml, TZ } from './assets/js/ui.js';
 
     document.getElementById('today').textContent = new Intl.DateTimeFormat('en-US', {
       timeZone: TZ, year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
@@ -35,7 +35,7 @@
     document.getElementById('grid').innerHTML = MODULE_REGISTRY.map(tileHTML).join('');
 
     function tileHTML(m, i) {
-      return `<a class="tile tile-${m.size}" href="${m.href}" style="--tint:${m.tint}" aria-label="Open ${escapeHtml(m.name)}: ${escapeHtml(m.sub)}">
+      return `<a class="tile tile-${m.size}" href="${m.href}" data-module="${m.id}" style="--tint:${m.tint}" aria-label="Open ${escapeHtml(m.name)}: ${escapeHtml(m.sub)}">
         <span class="tile-top">
           <span class="tile-index">·${String(i + 1).padStart(2, '0')}</span>
           <span class="tile-emoji" aria-hidden="true">${m.emoji}</span>
@@ -58,25 +58,28 @@
       try {
         const { supabase } = await import('./assets/js/supabase.js');
         const today = budapestToday();
-        const [dayWindow, res] = await Promise.all([
-          loadDayWindow(supabase),
-          supabase.from('tasks')
-            .select('title,done,scheduled_at,sort')
-            .eq('for_date', today)
-            .order('scheduled_at', { ascending: true, nullsFirst: false })
-            .order('sort', { ascending: true }),
-        ]);
+        const res = await supabase.from('tasks')
+          .select('title,done,scheduled_at,sort')
+          .eq('for_date', today)
+          .order('scheduled_at', { ascending: true, nullsFirst: false })
+          .order('sort', { ascending: true });
         const tasks = res.data ?? [];
+        const completed = tasks.filter((task) => task.done).length;
         const next = tasks.find((task) => !task.done);
         slot.innerHTML = `
-          <span class="mini-ring">${ringSVG(56, 6)}</span>
+          <span class="mini-ring">
+            ${ringSVG(112, 7)}
+            <span class="mini-ring-copy" aria-hidden="true">
+              <strong>${completed}/${tasks.length}</strong>
+              <small>tasks</small>
+            </span>
+          </span>
           <span class="mini-meta">
-            <span class="mini-count">${tasks.filter((task) => task.done).length}/${tasks.length}</span>
+            <span class="mini-eyebrow">Up next</span>
             <span class="mini-next">${next ? escapeHtml(next.title) : 'Nothing left today'}</span>
           </span>`;
-        const tick = () => setRing(slot, dayProgress(dayWindow).progress);
-        tick();
-        setInterval(tick, 1000);
+        slot.setAttribute('aria-label', `${completed} of ${tasks.length} tasks complete. ${next ? `Next: ${next.title}` : 'Nothing left today'}`);
+        setRing(slot, tasks.length ? completed / tasks.length : 0);
       } catch {
         /* Supabase not configured or unreachable — the tile stays static. */
       }
@@ -94,12 +97,22 @@
         const complete = data
           ? Number(data.sleep_hours >= 8) + Number(data.water_glasses >= 8) + Number(data.steps >= 8000)
           : 0;
+        const healthDetail = data
+          ? `${data.sleep_hours ?? '—'}h · ${(data.steps ?? 0).toLocaleString()} steps`
+          : 'Start today’s check-in';
         slot.innerHTML = `
-          <span class="health-tile-pulse" aria-hidden="true">♥</span>
-          <span class="mini-meta">
-            <span class="mini-count">${data ? `${complete} / 3 goals` : 'Check in'}</span>
-            <span class="mini-next">${data ? `${data.sleep_hours ?? '—'}h sleep · ${(data.steps ?? 0).toLocaleString()} steps` : 'Start today’s health log'}</span>
+          <span class="health-compact">
+            <span class="health-goal-dots" aria-hidden="true">
+              ${[0, 1, 2].map((index) => `<i class="${index < complete ? 'is-done' : ''}"></i>`).join('')}
+            </span>
+            <span class="health-compact-copy">
+              <strong>${data ? `${complete} / 3 goals` : 'Check in'}</strong>
+              <small>${healthDetail}</small>
+            </span>
           </span>`;
+        slot.setAttribute('aria-label', data
+          ? `${complete} of 3 health goals complete. ${data.sleep_hours ?? 'No'} hours sleep and ${(data.steps ?? 0).toLocaleString()} steps.`
+          : 'Start today’s health check-in.');
       } catch {
         /* Supabase not configured or unreachable — the tile stays static. */
       }
