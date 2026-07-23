@@ -11,19 +11,166 @@
   <link rel="stylesheet" href="../assets/css/base.css" />
   <link rel="stylesheet" href="../assets/css/mobile-forms.css?v=1" />
   <link rel="stylesheet" href="../assets/css/nav-calendar.css?v=4" />
+  <link rel="stylesheet" href="../assets/css/review.css?v=1" />
 </head>
-<body>
-  <div class="wrap">
-    <header class="page-head">
-      <h1>🤖 Weekly review</h1>
-      <p class="page-sub">AI coach</p>
+<body class="review-page">
+  <main class="review-shell">
+    <header class="review-topbar">
+      <div>
+        <p class="review-eyebrow">AI review · Weekly reset</p>
+        <h1>Your week, made useful.</h1>
+        <p class="review-subtitle">Evidence first. Reflection second. One clear plan for what comes next.</p>
+      </div>
+      <div class="review-controls" aria-label="Review week controls">
+        <button class="review-btn review-btn-icon" id="review-prev" type="button" aria-label="Previous week">←</button>
+        <div class="review-week-range">
+          <strong id="review-week-label">Loading week…</strong>
+          <span id="review-week-state">Completed week</span>
+        </div>
+        <button class="review-btn review-btn-icon" id="review-next" type="button" aria-label="Next week">→</button>
+        <div class="review-actions">
+          <button class="review-btn review-btn-primary" id="review-generate" type="button">Generate review</button>
+          <button class="review-btn" id="review-save" type="button">Save review</button>
+        </div>
+      </div>
     </header>
-    <main class="stack">
-      <section class="card">
-        <div class="empty-card"><span class="empty-emoji">◌</span><p>Weekly review — coming in a later phase</p></div>
-      </section>
-    </main>
-  </div>
+
+    <section class="review-metrics" aria-label="Week at a glance">
+      <article class="review-metric">
+        <div class="review-metric-head">
+          <span>Tasks completed</span>
+          <span class="review-delta" id="metric-tasks-delta">—</span>
+        </div>
+        <div class="review-metric-value"><strong id="metric-tasks-value">—</strong><span id="metric-tasks-unit">loading</span></div>
+        <div class="review-mini-track"><i id="metric-tasks-bar"></i></div>
+      </article>
+      <article class="review-metric">
+        <div class="review-metric-head">
+          <span>Habit consistency</span>
+          <span class="review-delta" id="metric-habits-delta">—</span>
+        </div>
+        <div class="review-metric-value"><strong id="metric-habits-value">—</strong><span>weekly</span></div>
+        <div class="review-mini-track"><i id="metric-habits-bar"></i></div>
+      </article>
+      <article class="review-metric">
+        <div class="review-metric-head">
+          <span>Health score</span>
+          <span class="review-delta" id="metric-health-delta">—</span>
+        </div>
+        <div class="review-metric-value"><strong id="metric-health-value">—</strong><span>of 100</span></div>
+        <div class="review-mini-track"><i id="metric-health-bar"></i></div>
+      </article>
+      <article class="review-metric">
+        <div class="review-metric-head">
+          <span>Average focus</span>
+          <span class="review-delta" id="metric-focus-delta">—</span>
+        </div>
+        <div class="review-metric-value"><strong id="metric-focus-value">—</strong><span>of 5</span></div>
+        <div class="review-mini-track"><i id="metric-focus-bar"></i></div>
+      </article>
+    </section>
+
+    <section class="review-workspace">
+      <div class="review-left-column">
+        <article class="review-panel review-coach">
+          <div class="review-panel-head">
+            <div>
+              <p class="review-section-tag">01 · Coach's read</p>
+              <h2>The week in one clear thought</h2>
+            </div>
+            <span class="review-state" id="review-state">Reading your data…</span>
+          </div>
+          <div class="review-coach-body">
+            <div class="review-coach-mark" aria-hidden="true">AI</div>
+            <div class="review-coach-copy">
+              <p class="review-lead" id="coach-summary">Your weekly read will appear here.</p>
+              <p class="review-note"><b aria-hidden="true">↗</b><span id="coach-note">Generate the review to turn this week's evidence into one focused recommendation.</span></p>
+            </div>
+          </div>
+        </article>
+
+        <article class="review-panel review-signals">
+          <div class="review-panel-head">
+            <div>
+              <p class="review-section-tag">02 · Evidence</p>
+              <h2>Signals worth acting on</h2>
+            </div>
+            <span class="review-subtitle">7-day pattern</span>
+          </div>
+          <div class="review-signal-grid">
+            <section class="review-signal">
+              <div class="review-signal-top"><span>Sleep ↔ focus</span><strong id="signal-sleep-score">—</strong></div>
+              <h3 id="signal-sleep-title">Waiting for health data</h3>
+              <p id="signal-sleep-copy">Log sleep and focus during the week to reveal this relationship.</p>
+              <div class="review-signal-viz review-signal-pink" id="signal-sleep-bars" aria-label="Daily focus pattern"></div>
+            </section>
+            <section class="review-signal">
+              <div class="review-signal-top"><span>Task timing</span><strong id="signal-tasks-score">—</strong></div>
+              <h3 id="signal-tasks-title">Waiting for task data</h3>
+              <p id="signal-tasks-copy">Completed tasks will reveal when your productive window is strongest.</p>
+              <div class="review-signal-viz" id="signal-tasks-bars" aria-label="Daily task completion pattern"></div>
+            </section>
+            <section class="review-signal">
+              <div class="review-signal-top"><span>Habits</span><strong id="signal-habits-score">—</strong></div>
+              <h3 id="signal-habits-title">Waiting for habit data</h3>
+              <p id="signal-habits-copy">Habit check-ins will show whether consistency held through the week.</p>
+              <div class="review-signal-viz" id="signal-habits-bars" aria-label="Daily habit completion pattern"></div>
+            </section>
+          </div>
+        </article>
+      </div>
+
+      <aside class="review-right-column">
+        <section class="review-panel review-reflection">
+          <div class="review-panel-head">
+            <div>
+              <p class="review-section-tag">03 · Reflection</p>
+              <h2>Add the part data cannot see</h2>
+            </div>
+          </div>
+          <div class="review-prompt-list">
+            <label class="review-prompt" for="review-proud">
+              <span><b>01</b>What are you proud of?</span>
+              <textarea id="review-proud" placeholder="A win, choice, or moment worth keeping…"></textarea>
+            </label>
+            <label class="review-prompt" for="review-drained">
+              <span><b>02</b>What drained you?</span>
+              <textarea id="review-drained" placeholder="Name the friction, not just the symptom…"></textarea>
+            </label>
+            <label class="review-prompt" for="review-avoided">
+              <span><b>03</b>What did you avoid?</span>
+              <textarea id="review-avoided" placeholder="The task or conversation that stayed open…"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="review-panel review-plan">
+          <div class="review-panel-head">
+            <div>
+              <p class="review-section-tag">04 · Next week</p>
+              <h2>Turn insight into a plan</h2>
+            </div>
+          </div>
+          <div class="review-experiment">
+            <small>Recommended experiment</small>
+            <textarea id="review-experiment" aria-label="Recommended experiment"></textarea>
+          </div>
+          <p class="review-commitment-title">Three commitments</p>
+          <div class="review-commitments">
+            <label class="review-commitment"><span>1</span><input id="review-commitment-1" maxlength="160" /><em>Main</em></label>
+            <label class="review-commitment"><span>2</span><input id="review-commitment-2" maxlength="160" /><em>Health</em></label>
+            <label class="review-commitment"><span>3</span><input id="review-commitment-3" maxlength="160" /><em>Schedule</em></label>
+          </div>
+          <div class="review-send-actions">
+            <button class="review-btn review-btn-soft" id="review-send-main" type="button">Send to Main</button>
+            <button class="review-btn" id="review-send-schedule" type="button">Send to Schedule</button>
+          </div>
+          <p class="review-status" id="review-status" role="status"></p>
+        </section>
+      </aside>
+    </section>
+  </main>
+  <script type="module" src="../assets/js/review.js?v=1"></script>
   <script type="module" src="../assets/js/nav.js?v=4"></script>
 </body>
 </html>
