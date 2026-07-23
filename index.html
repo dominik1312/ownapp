@@ -11,14 +11,17 @@
   <link rel="stylesheet" href="assets/css/base.css" />
   <link rel="stylesheet" href="assets/css/mobile-forms.css?v=1" />
 </head>
-<body>
+<body class="home-page">
   <div class="wrap">
     <header class="home-head">
-      <h1>Dominik's Dashboard</h1>
+      <div class="home-brand">
+        <span class="home-eyebrow">Daily command center</span>
+        <h1>Dominik's Dashboard</h1>
+      </div>
       <span class="home-date" id="today"></span>
     </header>
 
-    <main class="grid" id="grid"></main>
+    <main class="grid" id="grid" aria-label="Dashboard modules"></main>
   </div>
 
   <script type="module">
@@ -32,16 +35,16 @@
     document.getElementById('grid').innerHTML = MODULE_REGISTRY.map(tileHTML).join('');
 
     function tileHTML(m, i) {
-      return `<a class="tile tile-${m.size}" href="${m.href}" style="--tint:${m.tint}">
+      return `<a class="tile tile-${m.size}" href="${m.href}" style="--tint:${m.tint}" aria-label="Open ${escapeHtml(m.name)}: ${escapeHtml(m.sub)}">
         <span class="tile-top">
           <span class="tile-index">·${String(i + 1).padStart(2, '0')}</span>
-          <span class="tile-emoji">${m.emoji}</span>
+          <span class="tile-emoji" aria-hidden="true">${m.emoji}</span>
         </span>
         <span class="tile-live" data-live="${m.id}"></span>
         <span class="tile-foot">
           <span class="tile-name">${escapeHtml(m.name)}</span>
           <span class="tile-sub">${escapeHtml(m.sub)}</span>
-          <span class="tile-arrow">→</span>
+          <span class="tile-arrow" aria-hidden="true">→</span>
         </span>
       </a>`;
     }
