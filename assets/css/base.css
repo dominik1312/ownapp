@@ -407,6 +407,57 @@ a { color: inherit; text-decoration: none; }
    width so a nowrap child (e.g. the ticker text) can't stretch the page wider. */
 .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 
+/* ---------- Main workspace ---------- */
+
+.main-page {
+  background:
+    radial-gradient(760px 500px at 8% -5%, rgba(51, 214, 195, .055), transparent 68%),
+    radial-gradient(620px 420px at 100% 24%, rgba(96, 165, 250, .035), transparent 70%),
+    #080A0D;
+}
+.main-page .wrap {
+  width: min(1280px, calc(100% - 48px));
+  max-width: none;
+  padding: 36px 0 64px;
+}
+.main-page .page-head {
+  margin: 0 0 26px;
+  gap: 7px;
+}
+.main-page .page-head h1 {
+  font-size: clamp(30px, 3vw, 42px);
+  font-weight: 760;
+  font-variation-settings: 'wdth' 108;
+  letter-spacing: -.04em;
+}
+.main-page .page-sub { color: #8C97A8; }
+.main-workspace {
+  display: grid;
+  grid-template-columns: minmax(330px, .82fr) minmax(0, 1.35fr);
+  grid-template-areas:
+    "ticker ticker"
+    "rhythm today"
+    "rhythm tomorrow";
+  gap: 18px 20px;
+  align-items: start;
+}
+.main-workspace > .ticker { grid-area: ticker; }
+.main-workspace > .rhythm-card { grid-area: rhythm; align-self: stretch; }
+.task-panel-today { grid-area: today; }
+.task-panel-tomorrow { grid-area: tomorrow; }
+.task-panel {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+.main-page .task-card {
+  min-width: 0;
+  background: rgba(16, 20, 28, .9);
+  border-color: rgba(255, 255, 255, .085);
+  border-radius: 22px;
+  box-shadow: 0 22px 58px rgba(0, 0, 0, .25), inset 0 1px rgba(255, 255, 255, .025);
+}
+
 /* ---------- ticker (next todo, over the ring) ---------- */
 
 .ticker {
@@ -426,45 +477,61 @@ a { color: inherit; text-decoration: none; }
   font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted);
   background: rgba(255, 255, 255, .06); border-radius: 8px; padding: 2px 10px;
 }
+.main-page .ticker {
+  padding: 13px 18px;
+  background: rgba(16, 20, 28, .84);
+  border-color: rgba(255, 255, 255, .085);
+  border-radius: 16px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .22), inset 0 1px rgba(255, 255, 255, .025);
+}
 
 /* ---------- "Daily rhythm" phase-ring card (design: Day Ring standalone) ---------- */
 
 .rhythm-card {
-  --rc-primary: #2563EB; /* electric blue */
-  --rc-accent: #10B981;  /* emerald */
-  position: relative; overflow: hidden;
-  background: #0F172A;
-  border-color: rgba(255, 255, 255, .08);
+  --rc-primary: #33D6C3;
+  --rc-accent: #7BEADC;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  background: rgba(16, 20, 28, .92);
+  border-color: rgba(255, 255, 255, .085);
+  border-radius: 22px;
+  box-shadow: 0 26px 62px rgba(0, 0, 0, .28), inset 0 1px rgba(255, 255, 255, .025);
 }
-.rhythm-card::before { /* radial glow + faint blueprint grid, fading out radially */
+.rhythm-card::before {
   content: '';
-  position: absolute; inset: 0;
-  background-image:
-    radial-gradient(circle at 50% 15%, rgba(37, 99, 235, .28), transparent 60%),
-    linear-gradient(rgba(37, 99, 235, .08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(37, 99, 235, .08) 1px, transparent 1px);
-  background-size: 100% 100%, 60px 60px, 60px 60px;
-  -webkit-mask-image: radial-gradient(circle at 50% 20%, black, transparent 75%);
-  mask-image: radial-gradient(circle at 50% 20%, black, transparent 75%);
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(51, 214, 195, .11), transparent 45%),
+    linear-gradient(145deg, rgba(255, 255, 255, .018), transparent 44%);
   pointer-events: none;
 }
 
 .rhythm-inner {
   position: relative;
-  display: flex; flex-direction: column; align-items: center;
-  gap: 26px; padding: 18px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 28px;
+  padding: 24px 0;
 }
 .rhythm-eyebrow {
-  margin: 0; font-size: 12px; font-weight: 600;
-  letter-spacing: .14em; text-transform: uppercase;
+  margin: 0;
+  font: 600 10px 'JetBrains Mono', monospace;
+  letter-spacing: .18em;
+  text-transform: uppercase;
   color: var(--rc-accent);
 }
 
 .phase-ring-wrap { position: relative; width: 220px; height: 220px; }
 .phase-ring { transform: rotate(-90deg); display: block; }
-.pr-track { fill: none; stroke: rgba(255, 255, 255, .1); }
+.pr-track { fill: none; stroke: rgba(255, 255, 255, .085); }
 .pr-arc {
   fill: none; stroke: var(--rc-primary); stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(51, 214, 195, .32));
   transition: stroke-dashoffset .6s ease;
 }
 .pr-center {
@@ -473,40 +540,81 @@ a { color: inherit; text-decoration: none; }
   gap: 2px;
 }
 .pr-pct {
-  font-family: 'Sora', 'Archivo', sans-serif;
-  font-weight: 800; font-size: 2.6rem; letter-spacing: -.03em;
-  color: #fff; line-height: 1;
+  font-family: 'Archivo', 'Inter', sans-serif;
+  font-weight: 780;
+  font-size: 2.6rem;
+  letter-spacing: -.05em;
+  color: #F5F7FB;
+  line-height: 1;
 }
 .pr-phase {
   font-size: 13px; font-weight: 600;
   letter-spacing: .08em; text-transform: uppercase;
   color: var(--rc-accent);
 }
-.pr-clock { font-size: 14px; font-weight: 500; color: #94A3B8; margin-top: 4px; }
+.pr-clock { font: 500 13px 'JetBrains Mono', monospace; color: #8C97A8; margin-top: 5px; }
 
 .rhythm-info { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .rhythm-title { display: flex; align-items: center; gap: 8px; }
 .rhythm-title p {
   margin: 0;
-  font-family: 'Sora', 'Archivo', sans-serif;
-  font-weight: 600; font-size: 20px; color: #fff;
+  font-family: 'Archivo', 'Inter', sans-serif;
+  font-weight: 680; font-size: 20px; color: #F5F7FB;
 }
 .rhythm-icon { display: flex; color: var(--rc-primary); }
-.rhythm-remaining { margin: 0; font-size: 14.5px; color: #94A3B8; }
-.rhythm-window { margin: 0; font-size: 13px; color: #64748B; letter-spacing: .02em; }
+.rhythm-remaining { margin: 0; font-size: 14px; color: #8C97A8; }
+.rhythm-window { margin: 0; font: 500 11px 'JetBrains Mono', monospace; color: #647083; letter-spacing: .04em; }
 
 .rhythm-dots { display: flex; gap: 8px; }
-.rhythm-dots span { width: 6px; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .18); }
-.rhythm-dots span.is-active { background: var(--rc-primary); animation: ring-pulse 2.4s ease infinite; }
+.rhythm-dots span {
+  width: 22px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .09);
+}
+.rhythm-dots span.is-active {
+  background: var(--rc-primary);
+  box-shadow: 0 0 10px rgba(51, 214, 195, .3);
+  animation: ring-pulse 2.4s ease infinite;
+}
 @keyframes ring-pulse {
   0%, 100% { opacity: .55; }
   50%      { opacity: 1; }
 }
 
-/* Main page — phone polish. Scoped to Main-only components (ticker / rhythm /
-   today-head) so other modules are untouched. Structure & data are unchanged;
-   this only tightens spacing and type so it reads well on a narrow screen. */
+@media (max-width: 900px) {
+  .main-page .wrap { width: min(100% - 36px, 760px); }
+  .main-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "ticker"
+      "rhythm"
+      "today"
+      "tomorrow";
+  }
+}
+
+@media (min-width: 680px) and (max-width: 900px) {
+  .rhythm-inner {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-areas:
+      "eyebrow eyebrow"
+      "ring info"
+      "ring dots";
+    justify-content: stretch;
+    justify-items: start;
+    gap: 18px 32px;
+    padding: 18px 10px;
+  }
+  .rhythm-eyebrow { grid-area: eyebrow; }
+  .phase-ring-wrap { grid-area: ring; }
+  .rhythm-info { grid-area: info; align-items: flex-start; text-align: left; }
+  .rhythm-dots { grid-area: dots; }
+}
+
 @media (max-width: 600px) {
+  .main-page .wrap { width: calc(100% - 28px); padding-top: 26px; }
   .ticker { padding: 9px 14px; gap: 9px; }
   .rhythm-card { padding: 18px 14px; }
   .rhythm-inner { gap: 20px; padding: 8px 0; }
