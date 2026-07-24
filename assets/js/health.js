@@ -8,6 +8,7 @@ const TARGETS = { sleep: 8, water: 8, steps: 8000 };
 const emptyLog = { sleep_hours: null, water_glasses: 0, steps: null, weight_kg: null };
 const LOCAL_KEYS = {
   health: 'dashboard.health.logs.v1',
+  healthPending: 'dashboard.health.pending.v1',
   supplements: 'dashboard.health.supplements.v1',
   taken: 'dashboard.health.supplement-taken.v1',
 };
@@ -16,6 +17,14 @@ let history = [];
 let supplements = [];
 let takenSupplementIds = new Set();
 let saveTimer;
+let refreshTimer;
+let saveChain = Promise.resolve();
+let syncInFlight = false;
+let syncAgain = false;
+let healthPending = false;
+let healthRevision = 0;
+let supplementRevision = 0;
+let takenRevision = 0;
 
 function readLocal(key, fallback) {
   try {
@@ -45,6 +54,17 @@ function saveTakenLocally() {
   const allTaken = readLocal(LOCAL_KEYS.taken, {});
   allTaken[today] = [...takenSupplementIds];
   writeLocal(LOCAL_KEYS.taken, allTaken);
+}
+
+function healthPayload() {
+  return {
+    for_date: today,
+    sleep_hours: log.sleep_hours,
+    water_glasses: log.water_glasses,
+    steps: log.steps,
+    weight_kg: log.weight_kg,
+    updated_at: new Date().toISOString(),
+  };
 }
 
 function numeric(value, min, max) {
@@ -172,28 +192,36 @@ function renderHistory() {
 
 function queueSave() {
   clearTimeout(saveTimer);
+  healthRevision += 1;
+  healthPending = true;
+  writeLocal(LOCAL_KEYS.healthPending, true);
+  saveHealthLocally(healthPayload());
   $('#healthSaveState').textContent = 'Saving…';
-  saveTimer = setTimeout(save, 450);
+  saveTimer = setTimeout(() => {
+    saveChain = saveChain.then(save, save);
+  }, 450);
 }
 
 async function save() {
-  const payload = {
-    for_date: today,
-    sleep_hours: log.sleep_hours,
-    water_glasses: log.water_glasses,
-    steps: log.steps,
-    weight_kg: log.weight_kg,
-    updated_at: new Date().toISOString(),
-  };
+  const revision = healthRevision;
+  const payload = healthPayload();
   saveHealthLocally(payload);
   const { error } = await supabase.from('health_logs').upsert(payload, { onConflict: 'for_date' });
   if (error) {
     $('#healthSaveState').textContent = 'Saved on this device';
     showDatabaseError(error);
-    return;
+    return false;
   }
-  $('#healthSaveState').textContent = 'Saved';
-  setTimeout(() => { if ($('#healthSaveState').textContent === 'Saved') $('#healthSaveState').textContent = ''; }, 1400);
+  if (healthRevision === revision) {
+    healthPending = false;
+    writeLocal(LOCAL_KEYS.healthPending, false);
+    $('#healthSaveState').textContent = 'Saved';
+    setTimeout(() => { if ($('#healthSaveState').textContent === 'Saved') $('#healthSaveState').textContent = ''; }, 1400);
+  } else {
+    $('#healthSaveState').textContent = 'Saving…';
+  }
+  $('#health-status').textContent = '';
+  return true;
 }
 
 function showDatabaseError(error) {
@@ -201,6 +229,70 @@ function showDatabaseError(error) {
   status.textContent = /health_|schema cache|relation/i.test(error?.message || '')
     ? 'Using device storage for now. Run sql/health.sql in Supabase to sync across devices.'
     : 'Health data is temporarily unavailable.';
+}
+
+function finishSync() {
+  syncInFlight = false;
+  if (syncAgain) {
+    syncAgain = false;
+    syncFromServer();
+  }
+}
+
+async function syncFromServer() {
+  if (syncInFlight) {
+    syncAgain = true;
+    return;
+  }
+  syncInFlight = true;
+  const healthRevisionAtStart = healthRevision;
+  const supplementRevisionAtStart = supplementRevision;
+  const takenRevisionAtStart = takenRevision;
+  let results;
+  try {
+    results = await Promise.all([
+      supabase.from('health_logs')
+        .select('for_date,sleep_hours,water_glasses,steps,weight_kg,updated_at')
+        .order('for_date'),
+      supabase.from('health_supplements')
+        .select('id,name,dose,time_of_day,sort').eq('active', true).order('sort').order('created_at'),
+      supabase.from('health_supplement_logs')
+        .select('supplement_id').eq('for_date', today),
+    ]);
+  } catch (error) {
+    showDatabaseError(error);
+    finishSync();
+    return;
+  }
+  const [healthResult, supplementResult, takenResult] = results;
+
+  const firstError = healthResult.error || supplementResult.error || takenResult.error;
+  if (firstError) showDatabaseError(firstError);
+  else $('#health-status').textContent = '';
+
+  if (!healthResult.error && healthRevision === healthRevisionAtStart && !healthPending) {
+    history = healthResult.data || [];
+    writeLocal(LOCAL_KEYS.health, history);
+    const todayLog = history.find((entry) => entry.for_date === today);
+    log = { ...emptyLog, ...(todayLog || {}) };
+  }
+  if (!supplementResult.error && supplementRevision === supplementRevisionAtStart) {
+    const merged = new Map((supplementResult.data || []).map((item) => [item.id, item]));
+    supplements.filter((item) => String(item.id).startsWith('local-')).forEach((item) => merged.set(item.id, item));
+    supplements = [...merged.values()];
+    saveSupplementsLocally();
+  }
+  if (!takenResult.error && takenRevision === takenRevisionAtStart) {
+    takenSupplementIds = new Set((takenResult.data || []).map((entry) => entry.supplement_id));
+    saveTakenLocally();
+  }
+  render();
+  finishSync();
+}
+
+function scheduleRemoteSync() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(syncFromServer, 180);
 }
 
 async function load() {
@@ -212,45 +304,18 @@ async function load() {
   supplements = readLocal(LOCAL_KEYS.supplements, []);
   const localTaken = readLocal(LOCAL_KEYS.taken, {});
   takenSupplementIds = new Set(localTaken[today] || []);
+  healthPending = readLocal(LOCAL_KEYS.healthPending, false) === true;
   const localTodayLog = history.find((entry) => entry.for_date === today);
   if (localTodayLog) log = { ...emptyLog, ...localTodayLog };
   render();
 
-  const from = addDays(today, -6);
-  const [healthResult, supplementResult, takenResult] = await Promise.all([
-    supabase.from('health_logs')
-      .select('for_date,sleep_hours,water_glasses,steps,weight_kg')
-      .gte('for_date', from).lte('for_date', today).order('for_date'),
-    supabase.from('health_supplements')
-      .select('id,name,dose,time_of_day,sort').eq('active', true).order('sort').order('created_at'),
-    supabase.from('health_supplement_logs')
-      .select('supplement_id').eq('for_date', today),
-  ]);
-
-  const firstError = healthResult.error || supplementResult.error || takenResult.error;
-  if (firstError) showDatabaseError(firstError);
-
-  if (!healthResult.error && healthResult.data?.length && !history.length) {
-    history = healthResult.data;
-    writeLocal(LOCAL_KEYS.health, history);
-  }
-  if (!supplementResult.error && supplementResult.data?.length) {
-    const merged = new Map(supplementResult.data.map((item) => [item.id, item]));
-    supplements.filter((item) => String(item.id).startsWith('local-')).forEach((item) => merged.set(item.id, item));
-    supplements = [...merged.values()];
-    saveSupplementsLocally();
-  }
-  if (!takenResult.error) {
-    (takenResult.data || []).forEach((entry) => takenSupplementIds.add(entry.supplement_id));
-    saveTakenLocally();
-  }
-  const todayLog = history.find((entry) => entry.for_date === today);
-  if (todayLog) log = { ...emptyLog, ...todayLog };
-  render();
+  if (healthPending) await save();
+  await syncFromServer();
 }
 
 async function toggleSupplement(id) {
   const isTaken = takenSupplementIds.has(id);
+  takenRevision += 1;
   if (isTaken) takenSupplementIds.delete(id);
   else takenSupplementIds.add(id);
   saveTakenLocally();
@@ -261,10 +326,22 @@ async function toggleSupplement(id) {
     ? supabase.from('health_supplement_logs').delete().eq('supplement_id', id).eq('for_date', today)
     : supabase.from('health_supplement_logs').insert({ supplement_id: id, for_date: today });
   const { error } = await request;
-  if (error) showDatabaseError(error);
+  if (error) {
+    takenRevision += 1;
+    if (isTaken) takenSupplementIds.add(id);
+    else takenSupplementIds.delete(id);
+    saveTakenLocally();
+    renderSupplements();
+    showDatabaseError(error);
+  }
 }
 
 async function archiveSupplement(id) {
+  const index = supplements.findIndex((item) => item.id === id);
+  const archived = supplements[index];
+  const wasTaken = takenSupplementIds.has(id);
+  supplementRevision += 1;
+  takenRevision += 1;
   supplements = supplements.filter((item) => item.id !== id);
   takenSupplementIds.delete(id);
   saveSupplementsLocally();
@@ -273,7 +350,16 @@ async function archiveSupplement(id) {
 
   if (String(id).startsWith('local-')) return;
   const { error } = await supabase.from('health_supplements').update({ active: false }).eq('id', id);
-  if (error) showDatabaseError(error);
+  if (error) {
+    supplementRevision += 1;
+    takenRevision += 1;
+    if (archived) supplements.splice(Math.max(index, 0), 0, archived);
+    if (wasTaken) takenSupplementIds.add(id);
+    saveSupplementsLocally();
+    saveTakenLocally();
+    renderSupplements();
+    showDatabaseError(error);
+  }
 }
 
 $('#sleepInput').addEventListener('input', (event) => {
@@ -332,6 +418,7 @@ $('#supplementForm').addEventListener('submit', async (event) => {
     time_of_day: $('#supplementTime').value,
     sort: supplements.length ? Math.max(...supplements.map((item) => item.sort || 0)) + 1 : 0,
   };
+  supplementRevision += 1;
   supplements.push(payload);
   saveSupplementsLocally();
   event.target.reset();
@@ -345,15 +432,31 @@ $('#supplementForm').addEventListener('submit', async (event) => {
     showDatabaseError(error);
     return;
   }
+  supplementRevision += 1;
   const localIndex = supplements.findIndex((item) => item.id === payload.id);
   if (localIndex >= 0) supplements[localIndex] = data;
   if (takenSupplementIds.delete(payload.id)) {
+    takenRevision += 1;
     takenSupplementIds.add(data.id);
     saveTakenLocally();
   }
   saveSupplementsLocally();
   renderSupplements();
 });
+
+window.addEventListener('online', scheduleRemoteSync);
+window.addEventListener('focus', scheduleRemoteSync);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') scheduleRemoteSync();
+});
+setInterval(scheduleRemoteSync, 30_000);
+
+supabase
+  .channel('health-live')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'health_logs' }, scheduleRemoteSync)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'health_supplements' }, scheduleRemoteSync)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'health_supplement_logs' }, scheduleRemoteSync)
+  .subscribe();
 
 render();
 load();
