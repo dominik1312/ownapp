@@ -53,6 +53,13 @@ function numeric(value, min, max) {
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
 }
 
+function formatSleep(hours) {
+  if (hours == null || hours === '') return 'Not logged';
+  const value = Number(hours);
+  if (!Number.isFinite(value)) return 'Not logged';
+  return `${Number.isInteger(value) ? value : value.toFixed(1)} h`;
+}
+
 function scoreFor(entry) {
   if (!entry) return null;
   const hasSignal = entry.sleep_hours != null || entry.water_glasses > 0 || entry.steps != null;
@@ -94,7 +101,13 @@ function render() {
   $('#healthGoals').textContent = `${goals} of 3`;
   $('#healthInsight').textContent = insightFor(log, score);
 
-  $('#sleepInput').value = log.sleep_hours ?? '';
+  const sleepHours = log.sleep_hours == null ? null : Number(log.sleep_hours);
+  const sleepScaleValue = sleepHours == null ? TARGETS.sleep : Math.min(Math.max(sleepHours, 0), 12);
+  $('#sleepInput').value = sleepScaleValue;
+  $('#sleepInput').style.setProperty('--sleep-percent', `${(sleepScaleValue / 12) * 100}%`);
+  $('#sleepInput').setAttribute('aria-valuetext', sleepHours == null ? 'Not logged' : `${sleepHours} hours`);
+  $('#sleepValue').textContent = formatSleep(sleepHours);
+  $('#sleepClear').hidden = sleepHours == null;
   $('#waterValue').textContent = log.water_glasses || 0;
   $('#stepsInput').value = log.steps ?? '';
   $('#weightInput').value = log.weight_kg ?? '';
@@ -264,7 +277,13 @@ async function archiveSupplement(id) {
 }
 
 $('#sleepInput').addEventListener('input', (event) => {
-  log.sleep_hours = numeric(event.target.value, 0, 24);
+  log.sleep_hours = numeric(event.target.value, 0, 12);
+  render();
+  queueSave();
+});
+
+$('#sleepClear').addEventListener('click', () => {
+  log.sleep_hours = null;
   render();
   queueSave();
 });
