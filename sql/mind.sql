@@ -16,6 +16,7 @@ create table if not exists public.mind_logs (
 -- The browser talks to Supabase with the ANON key; give it read/write access
 -- (RLS is on by default when tables are created from the dashboard).
 alter table public.mind_logs enable row level security;
+drop policy if exists "anon full access mind_logs" on public.mind_logs;
 create policy "anon full access mind_logs"
   on public.mind_logs for all
   to anon using (true) with check (true);

@@ -50,7 +50,7 @@ const state = {
   loaded: false,
   seeding: false,
   flowMissing: false, // finance_flow table not created yet
-  flowHasEntries: true, // finance_flow.entries column present (see finance_flow_entries.sql)
+  flowHasEntries: true, // finance_flow.entries is part of sql/finance_flow.sql
   savingsV2: false, // optional goal_date / is_primary / deposits columns are present
   accounts: [], subs: [], goals: [],
   flow: [],           // all finance_flow rows (every month)
@@ -156,7 +156,7 @@ async function load() {
   } else {
     state.flowMissing = false;
     state.flow = (flow.data ?? []).map(normalizeFlow);
-    // Existing installations enable this column with finance_flow_entries.sql.
+    // Older installations may not yet have the entries column.
     const rows = flow.data ?? [];
     state.flowHasEntries = rows.length ? rows.some((r) => 'entries' in r) : true;
   }
@@ -727,7 +727,7 @@ function renderSave() {
   const goalOptions = goals.map((goal) => `<option value="${goal.id}">${escapeHtml(goal.name)}</option>`).join('');
   const goalForm = state.openForm === 'goal' ? `<form class="card money-inline-form money-goal-form" data-form="add-goal"><input name="goal_name" placeholder="Goal name" required maxlength="40" class="money-f-grow2" /><input name="goal_target" type="number" min="1" placeholder="Target amount" required class="money-f-grow1 mono" /><input name="goal_saved" type="number" min="0" placeholder="Current amount" class="money-f-grow1 mono" />${state.savingsV2 ? `<label class="money-date-field"><span>Target date</span><input name="goal_date" type="date" /></label><label class="money-primary-check"><input name="goal_primary" type="checkbox"${goals.length ? '' : ' checked'} /> Primary goal</label>` : ''}<button type="submit" class="money-form-submit money-form-submit--gold">Create goal</button></form>` : '';
 
-  if (!goals.length) return `<section class="card money-save-empty"><span class="money-save-empty-icon">◎</span><p class="money-save-eyebrow">Savings goals</p><h2>Start with one goal</h2><p>Give your savings a purpose, set a target, and track every deposit in one place.</p><div class="money-save-suggestions"><span>Emergency fund</span><span>Travel</span><span>Tech</span><span>Big purchase</span></div><button type="button" class="money-form-submit money-form-submit--gold" data-action="toggle-form" data-key="goal">+ Create your first goal</button>${!state.savingsV2 ? `<small class="money-save-migration-note">Run sql/finance_savings_upgrade.sql to enable dates and deposit history.</small>` : ''}</section>${goalForm}`;
+  if (!goals.length) return `<section class="card money-save-empty"><span class="money-save-empty-icon">◎</span><p class="money-save-eyebrow">Savings goals</p><h2>Start with one goal</h2><p>Give your savings a purpose, set a target, and track every deposit in one place.</p><div class="money-save-suggestions"><span>Emergency fund</span><span>Travel</span><span>Tech</span><span>Big purchase</span></div><button type="button" class="money-form-submit money-form-submit--gold" data-action="toggle-form" data-key="goal">+ Create your first goal</button>${!state.savingsV2 ? `<small class="money-save-migration-note">Run sql/finance.sql to enable dates and deposit history.</small>` : ''}</section>${goalForm}`;
 
   const primaryPct = primary.target ? Math.min(100, (primary.saved / primary.target) * 100) : 0;
   const circumference = 2 * Math.PI * 80;

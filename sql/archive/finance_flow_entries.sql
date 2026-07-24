@@ -1,4 +1,5 @@
--- Dominik's Dashboard — Money · Flow: itemized amounts per budget category.
+-- Archived upgrade: already incorporated into sql/finance_flow.sql and
+-- supabase/schemas/06_finance.sql.
 -- Run ONCE in the Supabase SQL Editor. This is safe and non-destructive: it
 -- only adds a column and does not change or delete existing totals or rows.
 

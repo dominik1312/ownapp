@@ -1,6 +1,6 @@
 -- Dominik's Dashboard — Fitness cloud sync store.
--- Run ONCE in the Supabase SQL Editor of the project the fitness page uses
--- (gcqaaunceyzjciwbwphj — the same one the gym section hardcodes). Safe to run
+-- Run ONCE in the Supabase SQL Editor of the project configured by the app
+-- (currently ievuxqksyhemdkzyzlkg). Safe to run
 -- even if the table already exists: everything here is create-if-not-exists.
 --
 -- One row per app section. `data` is the whole section state as JSONB:

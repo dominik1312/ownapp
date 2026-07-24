@@ -1,4 +1,5 @@
--- Dominik's Dashboard — Money · Savings upgrade.
+-- Archived upgrade: already incorporated into sql/finance.sql and
+-- supabase/schemas/06_finance.sql.
 -- Run ONCE in the Supabase SQL Editor. SAFE / NON-DESTRUCTIVE:
 -- this only adds optional goal metadata and a deposit-history column.
 -- Existing goals, saved amounts, accounts, subscriptions and Flow rows remain unchanged.

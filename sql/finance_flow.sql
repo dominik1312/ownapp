@@ -23,6 +23,7 @@ create index if not exists finance_flow_month_grp_idx on public.finance_flow (mo
 -- The browser talks to Supabase with the ANON key; give it read/write access,
 -- matching the convention of finance_items.
 alter table public.finance_flow enable row level security;
+drop policy if exists "anon full access finance_flow" on public.finance_flow;
 create policy "anon full access finance_flow"
   on public.finance_flow for all
   to anon using (true) with check (true);

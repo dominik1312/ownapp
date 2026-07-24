@@ -1,5 +1,4 @@
--- Dominik's Dashboard — Health module storage. Run once in the Supabase SQL Editor.
--- One row per Budapest calendar day, updated as the daily check-in changes.
+-- Current-state schema for Health logs and supplement tracking.
 
 create table if not exists public.health_logs (
   id uuid primary key default gen_random_uuid(),
@@ -12,13 +11,6 @@ create table if not exists public.health_logs (
   updated_at timestamptz not null default now()
 );
 
-alter table public.health_logs enable row level security;
-drop policy if exists "anon full access health_logs" on public.health_logs;
-create policy "anon full access health_logs"
-  on public.health_logs for all
-  to anon using (true) with check (true);
-
--- Personal supplement schedule and one completion record per supplement/day.
 create table if not exists public.health_supplements (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(name) between 1 and 60),
@@ -38,23 +30,25 @@ create table if not exists public.health_supplement_logs (
   unique (supplement_id, for_date)
 );
 
-alter table public.health_supplements enable row level security;
-alter table public.health_supplement_logs enable row level security;
-
-drop policy if exists "anon full access health_supplements" on public.health_supplements;
-create policy "anon full access health_supplements"
-  on public.health_supplements for all
-  to anon using (true) with check (true);
-
-drop policy if exists "anon full access health_supplement_logs" on public.health_supplement_logs;
-create policy "anon full access health_supplement_logs"
-  on public.health_supplement_logs for all
-  to anon using (true) with check (true);
-
 create index if not exists health_supplement_logs_date_idx
   on public.health_supplement_logs (for_date);
 
--- Keep open devices synchronized immediately. The app also polls as a fallback.
+alter table public.health_logs enable row level security;
+alter table public.health_supplements enable row level security;
+alter table public.health_supplement_logs enable row level security;
+
+drop policy if exists "anon full access health_logs" on public.health_logs;
+create policy "anon full access health_logs"
+  on public.health_logs for all to anon using (true) with check (true);
+
+drop policy if exists "anon full access health_supplements" on public.health_supplements;
+create policy "anon full access health_supplements"
+  on public.health_supplements for all to anon using (true) with check (true);
+
+drop policy if exists "anon full access health_supplement_logs" on public.health_supplement_logs;
+create policy "anon full access health_supplement_logs"
+  on public.health_supplement_logs for all to anon using (true) with check (true);
+
 do $$
 begin
   begin

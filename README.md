@@ -29,17 +29,22 @@ Personal life dashboard. Phase 1: project skeleton + Main module (day-progress r
 
 That's it — the home grid on `index.html` renders from the registry only; no grid code changes.
 
-## Data model (already applied in Supabase — do not recreate)
+## Data model
 
-| table | columns |
+The linked Supabase project currently contains 15 public tables:
+
+| module | tables |
 |---|---|
-| `events` | id, type, value, meta jsonb, source, logged_at, created_at |
-| `tasks` | id, title, category, scheduled_at, done, done_at, for_date, sort, created_at |
-| `habits` | id, name, icon, target_per_week, active, sort, created_at |
-| `habit_logs` | id, habit_id, for_date, logged_at |
-| `goals` | id, module, metric, target, period, created_at |
-| `settings` | key, value jsonb, updated_at — seeded: `day_window = {"wake":"07:00","sleep":"23:00"}` |
-| `finance_items` | id, list (`accounts`\|`income`\|`categories`\|`subs`\|`goals`), name, amount, type, day, target, saved, sort, created_at — **not applied yet**: run `sql/finance.sql` once in the Supabase SQL Editor |
+| Core | `tasks`, `settings` |
+| Habits | `habits`, `habit_logs` |
+| Schedule | `schedule_entries`, `schedule_categories` |
+| Health | `health_logs`, `health_supplements`, `health_supplement_logs` |
+| Mind | `mind_logs` |
+| Money | `finance_items`, `finance_flow` |
+| Fitness | `app_state` |
+| Legacy, currently unused | `events`, `goals` |
 
-The Schedule module stores cross-device time blocks in `schedule_entries` and editable categories in `schedule_categories`.
-Run `sql/schedule.sql` once in the Supabase SQL Editor before using it.
+The organized current-state definitions live in [`supabase/schemas`](supabase/schemas).
+See [`supabase/README.md`](supabase/README.md) for the migration workflow. The
+older files under [`sql`](sql) remain as convenient module setup scripts; their
+superseded upgrade scripts are kept in `sql/archive`.
